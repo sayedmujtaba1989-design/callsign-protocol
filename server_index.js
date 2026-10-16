@@ -51,7 +51,7 @@ async function initializeDatabases() {
     console.log('✅ PostgreSQL connected');
 
     // MongoDB - connect
-    mongoClient = new MongoClient(process.env.MONGODB_URL);
+    mongoClient = new MongoClient(process.env.MONGODB_URI);
     await mongoClient.connect();
     mongoDb = mongoClient.db('callsign');
     console.log('✅ MongoDB connected');
