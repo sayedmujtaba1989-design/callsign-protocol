@@ -20,6 +20,12 @@ const dotenv = require('dotenv');
 // Load environment variables
 dotenv.config();
 
+// Ensure JWT_SECRET is set
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️  JWT_SECRET not set in environment variables, using default (dev only!)');
+  process.env.JWT_SECRET = 'dev-secret-key-change-in-production';
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
