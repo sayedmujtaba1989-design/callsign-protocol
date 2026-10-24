@@ -20,10 +20,9 @@ const dotenv = require('dotenv');
 // Load environment variables
 dotenv.config();
 
-// Ensure JWT_SECRET is set
+// JWT_SECRET must be set; refuse to start without it (never use a built-in default)
 if (!process.env.JWT_SECRET) {
-  console.warn('⚠️  JWT_SECRET not set in environment variables, using default (dev only!)');
-  process.env.JWT_SECRET = 'dev-secret-key-change-in-production';
+  throw new Error('JWT_SECRET environment variable is required');
 }
 
 const app = express();
