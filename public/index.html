@@ -50,6 +50,9 @@
     .message.ok { display: block; background: #e7f9f0; color: #0a7a45; }
     .message.err { display: block; background: #fdecec; color: #b42318; }
     .hidden { display: none; }
+    .profile { margin-top: 18px; border-top: 1px solid #eee; padding-top: 12px; }
+    .profile-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: #555; }
+    .profile-row strong { color: #333; }
     .token { font-family: monospace; font-size: 12px; color: #555; margin-top: 10px; word-break: break-all; }
     .logout {
       margin-top: 18px; width: 100%; padding: 12px; border: none;
@@ -96,6 +99,7 @@
         Logged in as <strong id="playerName"></strong>
       </div>
       <div class="token" id="playerToken"></div>
+      <div class="profile" id="profile"></div>
       <button class="logout" id="logoutBtn" type="button">Log out</button>
     </div>
   </div>
@@ -125,11 +129,54 @@
       el.className = 'message' + (kind ? ' ' + kind : '');
     }
 
+    function profileRow(label, value) {
+      var div = document.createElement('div');
+      div.className = 'profile-row';
+      var l = document.createElement('span');
+      l.textContent = label;
+      var v = document.createElement('strong');
+      v.textContent = value;
+      div.appendChild(l);
+      div.appendChild(v);
+      return div;
+    }
+
+    function loadProfile(token) {
+      var box = $('profile');
+      box.textContent = 'Loading profile...';
+
+      fetch('/api/players/profile', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(function (res) {
+        if (res.status === 401 || res.status === 403) {
+          // Token expired or invalid: send the player back to login
+          try {
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
+          } catch (e) { /* ignore */ }
+          showAuth();
+          showMessage('Your session expired. Please log in again.', 'err');
+          return null;
+        }
+        return res.json();
+      }).then(function (p) {
+        if (!p) return;
+        box.textContent = '';
+        box.appendChild(profileRow('Display name', p.display_name || p.username));
+        box.appendChild(profileRow('Email', p.email));
+        box.appendChild(profileRow('Account level', p.account_level));
+        box.appendChild(profileRow('Playtime (minutes)', p.total_playtime_minutes));
+      }).catch(function () {
+        box.textContent = 'Could not load profile.';
+      });
+    }
+
     function showPlayer(username, token) {
       $('authView').classList.add('hidden');
       $('playerView').classList.remove('hidden');
       $('playerName').textContent = username;
       $('playerToken').textContent = 'Token: ' + token.slice(0, 24) + '...';
+      loadProfile(token);
     }
 
     function showAuth() {
