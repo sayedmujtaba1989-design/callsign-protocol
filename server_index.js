@@ -16,6 +16,7 @@ const { Pool } = require('pg');
 const { MongoClient } = require('mongodb');
 const redis = require('redis');
 const dotenv = require('dotenv');
+const path = require('path');
 
 // Load environment variables
 dotenv.config();
@@ -42,6 +43,9 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true
 }));
+
+// Serve the login page (public/index.html) at the root URL
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Database connections
 const pgPool = new Pool({

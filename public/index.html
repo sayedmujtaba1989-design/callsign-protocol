@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Callsign Protocol - Login</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 32px;
+      width: 100%;
+      max-width: 420px;
+    }
+    h1 { color: #333; font-size: 24px; margin-bottom: 6px; }
+    .subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tab {
+      flex: 1; padding: 10px; border: none; border-radius: 6px;
+      background: #f0f0f0; color: #333; font-weight: 600; cursor: pointer;
+    }
+    .tab.active { background: #667eea; color: #fff; }
+    label { display: block; color: #333; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+    input {
+      width: 100%; padding: 12px; border: 2px solid #e0e0e0;
+      border-radius: 6px; font-size: 16px;
+    }
+    input:focus { outline: none; border-color: #667eea; }
+    .submit {
+      width: 100%; margin-top: 22px; padding: 14px; border: none;
+      border-radius: 6px; background: #667eea; color: #fff;
+      font-size: 16px; font-weight: 600; cursor: pointer;
+    }
+    .submit:disabled { opacity: 0.6; cursor: default; }
+    .message {
+      margin-top: 18px; padding: 12px; border-radius: 6px;
+      font-size: 14px; display: none; word-break: break-word;
+    }
+    .message.ok { display: block; background: #e7f9f0; color: #0a7a45; }
+    .message.err { display: block; background: #fdecec; color: #b42318; }
+    .hidden { display: none; }
+    .token { font-family: monospace; font-size: 12px; color: #555; margin-top: 10px; word-break: break-all; }
+    .logout {
+      margin-top: 18px; width: 100%; padding: 12px; border: none;
+      border-radius: 6px; background: #f0f0f0; color: #333; font-weight: 600; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🎮 Callsign Protocol</h1>
+    <p class="subtitle">Player login</p>
+
+    <!-- Logged-out view -->
+    <div id="authView">
+      <div class="tabs">
+        <button class="tab active" id="tabLogin" type="button">Log in</button>
+        <button class="tab" id="tabRegister" type="button">Register</button>
+      </div>
+
+      <form id="authForm" autocomplete="on">
+        <label for="username">Username</label>
+        <input type="text" id="username" required autocomplete="username">
+
+        <div id="registerOnly" class="hidden">
+          <label for="email">Email</label>
+          <input type="email" id="email" autocomplete="email">
+
+          <label for="displayName">Display name (optional)</label>
+          <input type="text" id="displayName">
+        </div>
+
+        <label for="password">Password</label>
+        <input type="password" id="password" required autocomplete="current-password">
+
+        <button class="submit" id="submitBtn" type="submit">Log in</button>
+      </form>
+
+      <div id="message" class="message"></div>
+    </div>
+
+    <!-- Logged-in view -->
+    <div id="playerView" class="hidden">
+      <div class="message ok" style="display:block">
+        Logged in as <strong id="playerName"></strong>
+      </div>
+      <div class="token" id="playerToken"></div>
+      <button class="logout" id="logoutBtn" type="button">Log out</button>
+    </div>
+  </div>
+
+  <script>
+    // Same-origin API, so relative URLs work on any host
+    var TOKEN_KEY = 'callsign_token';
+    var USER_KEY = 'callsign_user';
+    var mode = 'login';
+
+    var $ = function (id) { return document.getElementById(id); };
+
+    function setMode(next) {
+      mode = next;
+      $('tabLogin').classList.toggle('active', next === 'login');
+      $('tabRegister').classList.toggle('active', next === 'register');
+      $('registerOnly').classList.toggle('hidden', next === 'login');
+      $('email').required = next === 'register';
+      $('submitBtn').textContent = next === 'login' ? 'Log in' : 'Create account';
+      $('password').autocomplete = next === 'login' ? 'current-password' : 'new-password';
+      showMessage('', '');
+    }
+
+    function showMessage(text, kind) {
+      var el = $('message');
+      el.textContent = text;
+      el.className = 'message' + (kind ? ' ' + kind : '');
+    }
+
+    function showPlayer(username, token) {
+      $('authView').classList.add('hidden');
+      $('playerView').classList.remove('hidden');
+      $('playerName').textContent = username;
+      $('playerToken').textContent = 'Token: ' + token.slice(0, 24) + '...';
+    }
+
+    function showAuth() {
+      $('playerView').classList.add('hidden');
+      $('authView').classList.remove('hidden');
+    }
+
+    // Keep the session across page reloads (per-browser convenience only)
+    try {
+      var savedToken = localStorage.getItem(TOKEN_KEY);
+      var savedUser = localStorage.getItem(USER_KEY);
+      if (savedToken && savedUser) showPlayer(savedUser, savedToken);
+    } catch (e) { /* storage blocked: just show the login form */ }
+
+    $('tabLogin').addEventListener('click', function () { setMode('login'); });
+    $('tabRegister').addEventListener('click', function () { setMode('register'); });
+
+    $('authForm').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      var btn = $('submitBtn');
+      btn.disabled = true;
+      showMessage('Working...', '');
+
+      var username = $('username').value.trim();
+      var password = $('password').value;
+      var url = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      var body = { username: username, password: password };
+      if (mode === 'register') {
+        body.email = $('email').value.trim();
+        body.displayName = $('displayName').value.trim() || username;
+      }
+
+      try {
+        var res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        var data = await res.json().catch(function () { return {}; });
+
+        if (res.ok && data.token) {
+          try {
+            localStorage.setItem(TOKEN_KEY, data.token);
+            localStorage.setItem(USER_KEY, data.username);
+          } catch (e) { /* storage blocked */ }
+          $('password').value = '';
+          showPlayer(data.username, data.token);
+        } else {
+          showMessage(data.error || ('Request failed (' + res.status + ')'), 'err');
+        }
+      } catch (err) {
+        showMessage('Could not reach the server. Try again in a few seconds (free servers wake up slowly).', 'err');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    $('logoutBtn').addEventListener('click', function () {
+      try {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+      } catch (e) { /* ignore */ }
+      $('username').value = '';
+      showAuth();
+      setMode('login');
+    });
+  </script>
+</body>
+</html>
