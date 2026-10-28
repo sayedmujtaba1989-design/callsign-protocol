@@ -317,6 +317,84 @@ app.get('/api/stats/overview', authenticateToken, async (req, res) => {
   }
 });
 
+// Create a new match
+app.post('/api/matches', async (req, res) => {
+  try {
+    const { mapName, gameMode } = req.body;
+
+    if (!mapName) {
+      return res.status(400).json({ error: 'mapName is required' });
+    }
+
+    const result = await pgPool.query(
+      `INSERT INTO matches (map_name, game_mode, started_at)
+       VALUES ($1, $2, NOW())
+       RETURNING id, map_name, game_mode, started_at`,
+      [mapName, gameMode || '5v5']
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create match error:', error);
+    res.status(500).json({ error: 'Failed to create match' });
+  }
+});
+
+// Record a player's match result
+app.post('/api/matches/:matchId/players', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const matchId = req.params.matchId;
+    const { team, role, kills, deaths, assists } = req.body;
+
+    if (!team) {
+      return res.status(400).json({ error: 'team is required' });
+    }
+
+    const result = await pgPool.query(
+      `INSERT INTO match_players (match_id, user_id, team, role, kills, deaths, assists)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, match_id, user_id, team, kills, deaths, assists`,
+      [matchId, userId, team, role || 'Rifleman', kills || 0, deaths || 0, assists || 0]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Record match player error:', error);
+    res.status(500).json({ error: 'Failed to record match result' });
+  }
+});
+
+// Get player stats (includes kills/deaths from all matches)
+app.get('/api/players/stats', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const result = await pgPool.query(
+      `SELECT
+        COALESCE(SUM(kills), 0) as total_kills,
+        COALESCE(SUM(deaths), 0) as total_deaths,
+        COALESCE(SUM(assists), 0) as total_assists,
+        COUNT(*) as total_matches
+       FROM match_players
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    const stats = result.rows[0] || {
+      total_kills: 0,
+      total_deaths: 0,
+      total_assists: 0,
+      total_matches: 0
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Player stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch player stats' });
+  }
+});
+
 // ===================
 // WebSocket Events (Socket.IO)
 // ===================
