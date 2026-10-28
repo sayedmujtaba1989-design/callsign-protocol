@@ -335,8 +335,8 @@ app.post('/api/matches', async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Create match error:', error);
-    res.status(500).json({ error: 'Failed to create match' });
+    console.error('Create match error:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
