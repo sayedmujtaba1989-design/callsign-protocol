@@ -360,8 +360,8 @@ app.post('/api/matches/:matchId/players', authenticateToken, async (req, res) =>
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Record match player error:', error);
-    res.status(500).json({ error: 'Failed to record match result' });
+    console.error('Record match player error:', error.message, 'Code:', error.code);
+    res.status(500).json({ error: `Failed to record match result: ${error.message}` });
   }
 });
 
