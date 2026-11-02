@@ -395,6 +395,76 @@ app.get('/api/players/stats', authenticateToken, async (req, res) => {
   }
 });
 
+// Get leaderboard (top players)
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const limit = req.query.limit || 50;
+    const result = await pgPool.query(
+      `SELECT
+        u.id,
+        u.username,
+        COALESCE(SUM(mp.kills), 0) as total_kills,
+        COALESCE(SUM(mp.deaths), 0) as total_deaths,
+        COALESCE(SUM(mp.assists), 0) as total_assists,
+        COUNT(DISTINCT mp.match_id) as total_matches,
+        CASE
+          WHEN COUNT(DISTINCT mp.match_id) > 0 THEN
+            ROUND(CAST(COALESCE(SUM(mp.kills), 0) AS FLOAT) / NULLIF(COUNT(DISTINCT mp.match_id), 0), 2)
+          ELSE 0
+        END as avg_kills_per_match
+       FROM users u
+       LEFT JOIN match_players mp ON u.id = mp.user_id
+       GROUP BY u.id, u.username
+       ORDER BY total_kills DESC, total_matches DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Leaderboard error:', error);
+    res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
+});
+
+// Get player's match history
+app.get('/api/matches/history', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const limit = req.query.limit || 20;
+
+    const result = await pgPool.query(
+      `SELECT
+        m.id as match_id,
+        m.map_name,
+        m.game_mode,
+        m.started_at,
+        m.ended_at,
+        m.duration_seconds,
+        m.alpha_score,
+        m.bravo_score,
+        m.winner,
+        mp.team,
+        mp.role,
+        mp.kills,
+        mp.deaths,
+        mp.assists,
+        mp.score
+       FROM matches m
+       JOIN match_players mp ON m.id = mp.match_id
+       WHERE mp.user_id = $1
+       ORDER BY m.started_at DESC
+       LIMIT $2`,
+      [userId, limit]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Match history error:', error);
+    res.status(500).json({ error: 'Failed to fetch match history' });
+  }
+});
+
 // ===================
 // WebSocket Events (Socket.IO)
 // ===================
