@@ -403,15 +403,10 @@ app.get('/api/leaderboard', async (req, res) => {
       `SELECT
         u.id,
         u.username,
-        COALESCE(SUM(mp.kills), 0) as total_kills,
-        COALESCE(SUM(mp.deaths), 0) as total_deaths,
-        COALESCE(SUM(mp.assists), 0) as total_assists,
-        COUNT(DISTINCT mp.match_id) as total_matches,
-        CASE
-          WHEN COUNT(DISTINCT mp.match_id) > 0 THEN
-            ROUND(CAST(COALESCE(SUM(mp.kills), 0) AS FLOAT) / NULLIF(COUNT(DISTINCT mp.match_id), 0), 2)
-          ELSE 0
-        END as avg_kills_per_match
+        COALESCE(SUM(mp.kills), 0)::INTEGER as total_kills,
+        COALESCE(SUM(mp.deaths), 0)::INTEGER as total_deaths,
+        COALESCE(SUM(mp.assists), 0)::INTEGER as total_assists,
+        COUNT(DISTINCT mp.match_id)::INTEGER as total_matches
        FROM users u
        LEFT JOIN match_players mp ON u.id = mp.user_id
        GROUP BY u.id, u.username
@@ -422,8 +417,8 @@ app.get('/api/leaderboard', async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error('Leaderboard error:', error);
-    res.status(500).json({ error: 'Failed to fetch leaderboard' });
+    console.error('Leaderboard error:', error.message);
+    res.status(500).json({ error: `Failed to fetch leaderboard: ${error.message}` });
   }
 });
 
