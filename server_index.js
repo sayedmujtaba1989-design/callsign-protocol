@@ -403,9 +403,9 @@ app.get('/api/leaderboard', async (req, res) => {
       `SELECT
         u.id,
         u.username,
-        COALESCE(SUM(mp.kills), 0)::INTEGER as total_kills,
-        COALESCE(SUM(mp.deaths), 0)::INTEGER as total_deaths,
-        COALESCE(SUM(mp.assists), 0)::INTEGER as total_assists,
+        COALESCE(SUM(CAST(mp.kills AS INTEGER)), 0)::INTEGER as total_kills,
+        COALESCE(SUM(CAST(mp.deaths AS INTEGER)), 0)::INTEGER as total_deaths,
+        COALESCE(SUM(CAST(mp.assists AS INTEGER)), 0)::INTEGER as total_assists,
         COUNT(DISTINCT mp.match_id)::INTEGER as total_matches
        FROM users u
        LEFT JOIN match_players mp ON u.id = mp.user_id
@@ -457,6 +457,39 @@ app.get('/api/matches/history', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Match history error:', error);
     res.status(500).json({ error: 'Failed to fetch match history' });
+  }
+});
+
+// Get rankings (with win/loss ratio)
+app.get('/api/rankings', async (req, res) => {
+  try {
+    const limit = req.query.limit || 50;
+    const result = await pgPool.query(
+      `SELECT
+        u.id,
+        u.username,
+        COUNT(DISTINCT mp.match_id)::INTEGER as total_matches,
+        COALESCE(SUM(CAST(mp.kills AS INTEGER)), 0)::INTEGER as total_kills,
+        COALESCE(SUM(CAST(mp.deaths AS INTEGER)), 0)::INTEGER as total_deaths,
+        CASE
+          WHEN SUM(CAST(mp.deaths AS INTEGER)) > 0 THEN
+            ROUND(CAST(COALESCE(SUM(CAST(mp.kills AS INTEGER)), 0) AS FLOAT) / CAST(COALESCE(SUM(CAST(mp.deaths AS INTEGER)), 1) AS FLOAT), 2)
+          ELSE 0
+        END as kd_ratio,
+        ROUND(CAST(COALESCE(SUM(CAST(mp.kills AS INTEGER)), 0) AS FLOAT) / NULLIF(COUNT(DISTINCT mp.match_id), 0), 2)::FLOAT as avg_kills_per_match
+       FROM users u
+       LEFT JOIN match_players mp ON u.id = mp.user_id
+       GROUP BY u.id, u.username
+       HAVING COUNT(DISTINCT mp.match_id) > 0
+       ORDER BY kd_ratio DESC, total_kills DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Rankings error:', error.message);
+    res.status(500).json({ error: `Failed to fetch rankings: ${error.message}` });
   }
 });
 
