@@ -263,24 +263,25 @@ export default function TacticalGame({ user, onGameEnd }) {
   }, [gameState, gameData]);
 
   if (gameState === 'toc') {
-    return (
-      <div style={styles.tocContainer}>
-        <div style={styles.tocHeader}>
-          <h2>🎖️ Tactical Operations Center</h2>
-          <div style={styles.gameId}>
-            {gameId && `Game: ${gameId.substring(0, 8)}`}
-          </div>
-        </div>
+    const unitsCount = gameData?.tocUnits?.length ?? 0;
+    const enemiesCount = gameData?.enemies?.length ?? 0;
+    const timeLeft = gameData?.time ?? 0;
+    const gameIdShort = gameId ? gameId.substring(0, 8) : '...';
 
-        <div style={styles.tocLayout}>
-          {/* Map */}
-          <div style={styles.mapSection}>
-            <h3>Battlefield Map</h3>
+    return (
+      <div style={{padding: '20px', background: '#1a1a2e', color: 'white', minHeight: '100vh', fontFamily: 'Arial'}}>
+        <h1 style={{textAlign: 'center', margin: '0 0 20px 0'}}>🎖️ Tactical Operations Center</h1>
+        <p style={{textAlign: 'center', marginBottom: '20px'}}>Game: {gameIdShort}</p>
+
+        <div style={{display: 'flex', gap: '20px', maxWidth: '1000px', margin: '0 auto'}}>
+          {/* Canvas */}
+          <div style={{flex: 1}}>
+            <h3 style={{margin: '0 0 10px 0'}}>Battlefield</h3>
             <canvas
               ref={canvasRef}
               width={400}
               height={400}
-              style={styles.canvas}
+              style={{border: '2px solid #667eea', borderRadius: '5px', background: '#0a0a1a', cursor: 'crosshair'}}
               onClick={(e) => {
                 const rect = canvasRef.current.getBoundingClientRect();
                 const x = e.clientX - rect.left;
@@ -288,29 +289,31 @@ export default function TacticalGame({ user, onGameEnd }) {
                 sendOrder('move', `(${Math.round(x)}, ${Math.round(y)})`);
               }}
             />
-            <p style={styles.hint}>🔵 Blue = Units | 🔴 Red = Enemies | Click to order</p>
+            <p style={{fontSize: '12px', color: '#aaa', marginTop: '10px'}}>🔵 Blue=Units | 🔴 Red=Enemies</p>
           </div>
 
-          {/* Status & Orders */}
-          <div style={styles.intelSection}>
-            <div style={{padding: '15px', background: '#2a2a4e', borderRadius: '5px', marginBottom: '15px'}}>
-              <h3 style={{margin: '0 0 10px 0'}}>📊 Status</h3>
-              <p style={{margin: '5px 0'}}>Units: <strong>{(gameData && gameData.tocUnits && gameData.tocUnits.length) || 0}</strong></p>
-              <p style={{margin: '5px 0'}}>Enemies: <strong>{(gameData && gameData.enemies && gameData.enemies.length) || 0}</strong></p>
-              <p style={{margin: '5px 0'}}>Time: <strong>{(gameData && gameData.time) || 0}s</strong></p>
+          {/* Controls */}
+          <div style={{flex: 1}}>
+            <div style={{background: '#2a2a4e', padding: '15px', borderRadius: '5px', marginBottom: '15px'}}>
+              <h3 style={{margin: '0 0 10px 0'}}>Status</h3>
+              <p>Units: <strong>{unitsCount}</strong></p>
+              <p>Enemies: <strong>{enemiesCount}</strong></p>
+              <p>Time: <strong>{timeLeft}s</strong></p>
             </div>
 
-            <div style={{padding: '15px', background: '#2a2a4e', borderRadius: '5px'}}>
-              <h3 style={{margin: '0 0 10px 0'}}>⚙️ Commands</h3>
-              <button onClick={() => sendOrder('advance', 'North')} style={styles.orderBtn}>↑ Advance North</button>
-              <button onClick={() => sendOrder('hold', 'Position')} style={styles.orderBtn}>⏸ Hold Position</button>
-              <button onClick={() => sendOrder('engage', 'Hostiles')} style={styles.orderBtn}>🎯 Engage</button>
-              <button onClick={() => sendOrder('retreat', 'South')} style={styles.orderBtn}>↓ Retreat South</button>
+            <div style={{background: '#2a2a4e', padding: '15px', borderRadius: '5px'}}>
+              <h3 style={{margin: '0 0 10px 0'}}>Commands</h3>
+              <button onClick={() => sendOrder('advance', 'North')} style={{display: 'block', width: '100%', padding: '10px', marginBottom: '8px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>↑ Advance</button>
+              <button onClick={() => sendOrder('hold', 'Position')} style={{display: 'block', width: '100%', padding: '10px', marginBottom: '8px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>⏸ Hold</button>
+              <button onClick={() => sendOrder('engage', 'Hostiles')} style={{display: 'block', width: '100%', padding: '10px', marginBottom: '8px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>🎯 Engage</button>
+              <button onClick={() => sendOrder('retreat', 'South')} style={{display: 'block', width: '100%', padding: '10px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>↓ Retreat</button>
             </div>
           </div>
         </div>
 
-        <button onClick={() => onGameEnd()} style={styles.exitBtn}>Exit Game</button>
+        <div style={{textAlign: 'center', marginTop: '30px'}}>
+          <button onClick={() => onGameEnd()} style={{padding: '12px 30px', background: '#666', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold'}}>Exit Game</button>
+        </div>
       </div>
     );
   }
