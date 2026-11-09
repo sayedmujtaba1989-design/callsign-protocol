@@ -748,31 +748,99 @@ io.on('connection', (socket) => {
 });
 
 // ===================
-// Tactical Game Simulation Loop
+// Real Combat Simulation Loop
 // ===================
-// Run every 500ms - move enemies, update state, broadcast to players
+// Enemies hunt units, units engage enemies, real-time combat
 setInterval(() => {
   activeGames.forEach((game, gameId) => {
-    // Move enemies randomly
-    game.state.enemies.forEach(enemy => {
-      // Random walk
-      enemy.x += (Math.random() - 0.5) * 20;
-      enemy.y += (Math.random() - 0.5) * 20;
+    const units = game.state.tocUnits;
+    const enemies = game.state.enemies;
+
+    // Enemy AI: Hunt and engage units
+    enemies.forEach(enemy => {
+      let closestUnit = null;
+      let closestDist = Infinity;
+
+      // Find nearest unit
+      units.forEach(unit => {
+        const dist = Math.hypot(unit.x - enemy.x, unit.y - enemy.y);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestUnit = unit;
+        }
+      });
+
+      if (closestUnit) {
+        // Hunt the unit
+        const dx = closestUnit.x - enemy.x;
+        const dy = closestUnit.y - enemy.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > 5) {
+          enemy.x += (dx / dist) * 3; // Move toward unit
+          enemy.y += (dy / dist) * 3;
+        }
+
+        // Open fire if close
+        if (dist < 100 && Math.random() < 0.15) {
+          closestUnit.health -= Math.random() * 15;
+          if (closestUnit.health < 0) closestUnit.health = 0;
+        }
+      } else {
+        // Patrol randomly
+        enemy.x += (Math.random() - 0.5) * 8;
+        enemy.y += (Math.random() - 0.5) * 8;
+      }
 
       // Keep in bounds
       enemy.x = Math.max(20, Math.min(380, enemy.x));
       enemy.y = Math.max(20, Math.min(380, enemy.y));
     });
 
-    // Broadcast state to all players in game
+    // Unit counter-fire and morale
+    units.forEach(unit => {
+      let threatsNearby = 0;
+      enemies.forEach(enemy => {
+        const dist = Math.hypot(unit.x - enemy.x, unit.y - enemy.y);
+        if (dist < 120) {
+          threatsNearby++;
+          // Return fire
+          if (Math.random() < 0.20) {
+            enemy.health -= Math.random() * 20;
+            if (enemy.health <= 0) {
+              enemy.x = Math.random() * 400;
+              enemy.y = Math.random() * 400;
+              enemy.health = 50; // Respawn
+            }
+          }
+        }
+      });
+
+      // Morale affects movement
+      if (unit.health > 75) {
+        unit.status = '✅ Ready';
+      } else if (unit.health > 50) {
+        unit.status = '⚠️ Engaged';
+      } else if (unit.health > 25) {
+        unit.status = '🔴 Pinned';
+      } else {
+        unit.status = '💀 Critical';
+      }
+    });
+
+    // Remove destroyed enemies
+    game.state.enemies = enemies.filter(e => e.health > 0);
+
+    // Broadcast real-time combat state
     io.to(gameId).emit('tactical:stateUpdate', {
       groundUnits: game.groundUnits,
       enemies: game.state.enemies,
-      tocUnits: game.state.tocUnits,
-      time: game.state.time--
+      tocUnits: units,
+      time: game.state.time--,
+      combatActive: game.state.enemies.length > 0
     });
 
-    console.log(`🔄 Game ${gameId}: ${game.groundUnits.length} units, ${game.state.enemies.length} enemies`);
+    console.log(`⚔️ ${gameId}: ${units.length} units (${units.map(u => u.health.toFixed(0)).join(',')}) vs ${enemies.length} enemies`);
   });
 }, 500);
 

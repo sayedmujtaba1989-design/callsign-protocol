@@ -7,9 +7,10 @@ export default function TacticalGame({ user, onGameEnd }) {
   const [screen, setScreen] = useState('mode');
   const [gameId, setGameId] = useState(null);
   const [socket, setSocket] = useState(null);
+  const [gameData, setGameData] = useState({tocUnits: [], enemies: [], combatActive: false});
   const canvasRef = useRef(null);
 
-  // Initialize socket SAFELY
+  // Initialize socket
   useEffect(() => {
     let newSocket = null;
     try {
@@ -20,25 +21,18 @@ export default function TacticalGame({ user, onGameEnd }) {
         transports: ['websocket', 'polling']
       });
 
-      newSocket.on('connect', () => {
-        console.log('✅ Connected to tactical server');
-      });
-
+      newSocket.on('connect', () => console.log('✅ Connected'));
       newSocket.on('tactical:gameCreated', (data) => {
-        console.log('🎖️ TOC game created:', data.gameId);
         setGameId(data.gameId);
         setScreen('toc');
       });
-
-      newSocket.on('tactical:gameJoined', (data) => {
-        console.log('🪖 Ground unit joined:', data.gameId);
-        setGameId(data.gameId);
-        setScreen('ground');
+      newSocket.on('tactical:stateUpdate', (data) => {
+        setGameData(data);
       });
 
       setSocket(newSocket);
     } catch (err) {
-      console.error('Socket init error:', err);
+      console.error('Socket error:', err);
     }
 
     return () => {
@@ -46,7 +40,7 @@ export default function TacticalGame({ user, onGameEnd }) {
     };
   }, []);
 
-  // Canvas drawing for TOC
+  // Real-time combat canvas
   useEffect(() => {
     if (screen !== 'toc' || !canvasRef.current) return;
 
@@ -55,11 +49,11 @@ export default function TacticalGame({ user, onGameEnd }) {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Draw background
-      ctx.fillStyle = '#1a2a4a';
+      // Dynamic background based on combat
+      ctx.fillStyle = gameData.combatActive ? '#2a1a1a' : '#1a2a4a';
       ctx.fillRect(0, 0, 400, 400);
 
-      // Draw grid
+      // Grid
       ctx.strokeStyle = '#334455';
       ctx.lineWidth = 1;
       for (let i = 0; i <= 10; i++) {
@@ -73,29 +67,75 @@ export default function TacticalGame({ user, onGameEnd }) {
         ctx.stroke();
       }
 
-      // Draw crosshair
+      // Draw friendly units with health colors
+      if (gameData.tocUnits) {
+        gameData.tocUnits.forEach((unit, i) => {
+          const hp = unit.health || 100;
+          if (hp > 75) ctx.fillStyle = '#4da6ff'; // Blue healthy
+          else if (hp > 50) ctx.fillStyle = '#ffaa00'; // Yellow wounded
+          else if (hp > 0) ctx.fillStyle = '#ff4444'; // Red critical
+          else ctx.fillStyle = '#333333'; // Gray dead
+
+          ctx.beginPath();
+          ctx.arc(unit.x, unit.y, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'white';
+          ctx.font = 'bold 10px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(i + 1), unit.x, unit.y);
+        });
+      }
+
+      // Draw enemies with health bars
+      if (gameData.enemies) {
+        gameData.enemies.forEach((enemy) => {
+          ctx.fillStyle = '#ff4444';
+          ctx.beginPath();
+          ctx.arc(enemy.x, enemy.y, 7, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Health bar
+          ctx.fillStyle = '#333';
+          ctx.fillRect(enemy.x - 12, enemy.y - 15, 24, 3);
+          const healthPercent = Math.max(0, enemy.health / 50);
+          ctx.fillStyle = enemy.health > 30 ? '#00ff00' : '#ff0000';
+          ctx.fillRect(enemy.x - 12, enemy.y - 15, healthPercent * 24, 3);
+        });
+      }
+
+      // Crosshair
       ctx.strokeStyle = '#667eea';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(200, 185);
       ctx.lineTo(200, 215);
       ctx.moveTo(185, 200);
       ctx.lineTo(215, 200);
       ctx.stroke();
+
+      // Combat status
+      if (gameData.combatActive) {
+        ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+        ctx.fillRect(0, 0, 400, 400);
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold 18px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('⚔️ COMBAT ACTIVE', 200, 30);
+      }
     } catch (err) {
       console.error('Canvas error:', err);
     }
-  }, [screen]);
+  }, [screen, gameData]);
 
   // Mode selection
   if (screen === 'mode') {
     return (
       <div style={{padding: '40px', textAlign: 'center', background: '#1a1a2e', color: 'white', minHeight: '100vh'}}>
         <h1>🎖️ Callsign Protocol</h1>
-        <p>Tactical Command Game</p>
+        <p>Real-Time Tactical Command Game</p>
         <button
-          onClick={() => {
-            if (socket) socket.emit('tactical:createGame', {scenario: 'patrol'});
-          }}
+          onClick={() => socket?.emit('tactical:createGame', {scenario: 'patrol'})}
           style={{padding: '15px 40px', margin: '10px', background: '#667eea', color: 'white', border: 'none', borderRadius: '5px', fontSize: '16px', cursor: 'pointer'}}
         >
           🗺️ Create TOC
@@ -113,37 +153,50 @@ export default function TacticalGame({ user, onGameEnd }) {
     );
   }
 
-  // TOC screen
+  // TOC combat view
   if (screen === 'toc') {
     return (
       <div style={{padding: '20px', background: '#1a1a2e', color: 'white', minHeight: '100vh'}}>
         <h2>🎖️ Tactical Operations Center</h2>
         <p>Game: {gameId?.substring(0, 8) || '...'}</p>
-        <canvas
-          ref={canvasRef}
-          width="400"
-          height="400"
-          style={{border: '2px solid #667eea', background: '#0a0a1a', cursor: 'crosshair', borderRadius: '5px'}}
-        />
-        <p>Real-time Battlefield Map</p>
-        <button onClick={() => onGameEnd()} style={{padding: '10px 20px', background: '#666', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>
-          Exit
-        </button>
-      </div>
-    );
-  }
 
-  // Ground unit screen
-  if (screen === 'ground') {
-    return (
-      <div style={{padding: '20px', background: '#1a1a2e', color: 'white', minHeight: '100vh'}}>
-        <h2>🪖 Ground Unit Operations</h2>
-        <p>Game: {gameId?.substring(0, 8) || '...'}</p>
-        <div style={{padding: '20px', background: '#2a2a4e', borderRadius: '5px', marginBottom: '20px'}}>
-          <p>Field of View</p>
-          <p>Waiting for orders from TOC...</p>
+        <div style={{display: 'flex', gap: '20px'}}>
+          {/* Canvas */}
+          <div>
+            <canvas
+              ref={canvasRef}
+              width="400"
+              height="400"
+              style={{border: gameData.combatActive ? '3px solid #ff4444' : '2px solid #667eea', background: '#0a0a1a', cursor: 'crosshair', borderRadius: '5px'}}
+            />
+            <p>{gameData.combatActive ? '⚔️ Combat Ongoing' : '📍 Patrol Mode'}</p>
+          </div>
+
+          {/* Status Panel */}
+          <div style={{background: '#2a2a4e', padding: '15px', borderRadius: '5px', minWidth: '200px'}}>
+            <h3>🎖️ Unit Status</h3>
+            {gameData.tocUnits && gameData.tocUnits.map((unit, i) => (
+              <div key={i} style={{padding: '8px', background: '#1a1a2e', marginBottom: '8px', borderRadius: '4px', borderLeft: `4px solid ${unit.health > 75 ? '#4da6ff' : unit.health > 50 ? '#ffaa00' : '#ff4444'}`}}>
+                <strong>Unit {i+1}</strong> {unit.name}
+                <br />HP: {unit.health?.toFixed(0) || 100}/100
+                <br />{unit.status || '✅ Ready'}
+              </div>
+            ))}
+
+            <h3 style={{marginTop: '20px'}}>🔴 Enemies</h3>
+            <p>{gameData.enemies?.length || 0} active</p>
+
+            <h3 style={{marginTop: '20px'}}>⚙️ Commands</h3>
+            <button onClick={() => socket?.emit('tactical:sendOrder', {gameId, order: 'advance', target: 'objective'})} style={{display: 'block', width: '100%', padding: '8px', marginBottom: '5px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>
+              ↑ Advance
+            </button>
+            <button onClick={() => socket?.emit('tactical:sendOrder', {gameId, order: 'engage', target: 'enemies'})} style={{display: 'block', width: '100%', padding: '8px', marginBottom: '5px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>
+              🎯 Engage
+            </button>
+          </div>
         </div>
-        <button onClick={() => onGameEnd()} style={{padding: '10px 20px', background: '#666', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>
+
+        <button onClick={() => onGameEnd()} style={{marginTop: '20px', padding: '10px 20px', background: '#666', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>
           Exit
         </button>
       </div>
