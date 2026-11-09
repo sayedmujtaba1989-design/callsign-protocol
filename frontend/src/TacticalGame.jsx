@@ -8,7 +8,13 @@ export default function TacticalGame({ user, onGameEnd }) {
   const [gameId, setGameId] = useState(null);
   const [socket, setSocket] = useState(null);
   const [roleState, setRoleState] = useState('TOC'); // TOC or GROUND
-  const [gameData, setGameData] = useState(null);
+  const [gameData, setGameData] = useState({
+    tocUnits: [],
+    enemies: [],
+    groundUnits: [],
+    tocIntel: [],
+    time: 300
+  });
   const [orders, setOrders] = useState([]);
   const [message, setMessage] = useState('');
   const canvasRef = useRef(null);
@@ -75,13 +81,24 @@ export default function TacticalGame({ user, onGameEnd }) {
 
     newSocket.on('tactical:stateUpdate', (data) => {
       console.log('📍 State update:', data);
-      setGameData(prev => ({
-        ...prev,
-        groundUnits: data.groundUnits || prev.groundUnits,
-        enemies: data.enemies || prev.enemies,
-        tocUnits: data.tocUnits || prev.tocUnits,
-        time: data.time
-      }));
+      setGameData(prev => {
+        if (!prev) {
+          return {
+            tocUnits: data.tocUnits || [],
+            enemies: data.enemies || [],
+            groundUnits: data.groundUnits || [],
+            tocIntel: [],
+            time: data.time || 300
+          };
+        }
+        return {
+          ...prev,
+          groundUnits: data.groundUnits || prev.groundUnits,
+          enemies: data.enemies || prev.enemies,
+          tocUnits: data.tocUnits || prev.tocUnits,
+          time: data.time
+        };
+      });
     });
 
     newSocket.on('tactical:unitPositionUpdate', (data) => {
@@ -193,38 +210,49 @@ export default function TacticalGame({ user, onGameEnd }) {
       ctx.stroke();
 
       // Draw your units (blue)
-      const units = gameData?.tocUnits || gameData?.groundUnits || [];
-      if (units && units.length > 0) {
-        units.forEach((unit, i) => {
-          const x = unit.x || 100 + i * 50;
-          const y = unit.y || 100 + i * 50;
-          ctx.fillStyle = '#4da6ff';
-          ctx.beginPath();
-          ctx.arc(x, y, 8, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = 'white';
-          ctx.font = 'bold 10px Arial';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(unit.name?.charAt(0) || String(i + 1), x, y);
-        });
+      try {
+        const units = gameData?.tocUnits || gameData?.groundUnits || [];
+        if (Array.isArray(units) && units.length > 0) {
+          units.forEach((unit, i) => {
+            if (!unit) return;
+            const x = Math.max(10, Math.min(390, unit.x || 100 + i * 50));
+            const y = Math.max(10, Math.min(390, unit.y || 100 + i * 50));
+            ctx.fillStyle = '#4da6ff';
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(unit.name?.charAt(0) || String(i + 1), x, y);
+          });
+        }
+      } catch (err) {
+        console.error('Error drawing units:', err);
       }
 
       // Draw enemies (red)
-      if (gameData?.enemies) {
-        gameData.enemies.forEach((enemy) => {
-          const x = (enemy.x % 400) || Math.random() * 400;
-          const y = (enemy.y % 400) || Math.random() * 400;
-          ctx.fillStyle = '#ff4444';
-          ctx.beginPath();
-          ctx.arc(x, y, 7, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = 'white';
-          ctx.font = 'bold 10px Arial';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('E', x, y);
-        });
+      try {
+        const enemies = gameData?.enemies || [];
+        if (Array.isArray(enemies) && enemies.length > 0) {
+          enemies.forEach((enemy) => {
+            if (!enemy) return;
+            const x = Math.max(10, Math.min(390, enemy.x || Math.random() * 400));
+            const y = Math.max(10, Math.min(390, enemy.y || Math.random() * 400));
+            ctx.fillStyle = '#ff4444';
+            ctx.beginPath();
+            ctx.arc(x, y, 7, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('E', x, y);
+          });
+        }
+      } catch (err) {
+        console.error('Error drawing enemies:', err);
       }
 
       animationId = requestAnimationFrame(drawCanvas);
