@@ -29,13 +29,21 @@ export default function AICommandSimulator({ user, onGameEnd }) {
       });
 
       newSocket.on('connect', () => {
-        console.log('✅ Socket Connected');
+        console.log('✅ Socket Connected, ID:', newSocket.id);
         setSocketConnected(true);
       });
 
       newSocket.on('disconnect', () => {
         console.log('❌ Socket Disconnected');
         setSocketConnected(false);
+      });
+
+      newSocket.on('error', (error) => {
+        console.error('❌ Socket Error:', error);
+      });
+
+      newSocket.on('connect_error', (error) => {
+        console.error('❌ Connection Error:', error);
       });
 
       newSocket.on('tactical:missionBriefing', (data) => {
@@ -89,13 +97,31 @@ export default function AICommandSimulator({ user, onGameEnd }) {
 
   if (screen === 'briefing') {
     const handleStartMission = (scenario) => {
-      if (!socketRef.current || !socketRef.current.connected) {
-        console.error('Socket not ready. Connected:', socketRef.current?.connected);
-        alert('Connecting to server... please wait and try again');
+      console.log('🔵 Button clicked for scenario:', scenario);
+      console.log('Socket ref:', socketRef.current);
+      console.log('Socket connected:', socketRef.current?.connected);
+      console.log('Socket ID:', socketRef.current?.id);
+
+      if (!socketRef.current) {
+        console.error('❌ Socket ref is null');
+        alert('Socket not initialized');
         return;
       }
-      console.log('📡 Emitting tactical:startMission with scenario:', scenario);
-      socketRef.current.emit('tactical:startMission', {scenario});
+
+      if (!socketRef.current.connected) {
+        console.error('❌ Socket not connected');
+        alert('Socket not connected. Connected status:', socketRef.current.connected);
+        return;
+      }
+
+      try {
+        console.log('📡 Emitting tactical:startMission with scenario:', scenario);
+        socketRef.current.emit('tactical:startMission', {scenario});
+        console.log('✅ Emit sent successfully');
+      } catch (err) {
+        console.error('❌ Emit error:', err);
+        alert('Error sending command: ' + err.message);
+      }
     };
 
     return (

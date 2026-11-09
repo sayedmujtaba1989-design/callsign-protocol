@@ -1001,6 +1001,67 @@ Make it realistic, tactical, and with 2-3 decision points. Vary the scenarios ea
       });
     }
   });
+
+  // ==========================================
+  // REAL-TIME AI SOLDIER COMMAND SIMULATOR
+  // ==========================================
+
+  // Real-time mission simulation
+  socket.on('tactical:startMission', async (data) => {
+    const gameId = `mission_${Date.now()}`;
+    let squad = [];
+
+    try {
+      squad = await generateSquad(data.scenario);
+    } catch (err) {
+      console.error('Squad generation failed, using fallback:', err.message);
+      squad = [
+        {name: 'Falcon', role: 'Leader', specialty: 'Tactical command', health: 100, status: 'ready', x: 50, y: 50},
+        {name: 'Storm', role: 'Rifleman', specialty: 'Assault', health: 100, status: 'ready', x: 60, y: 50},
+        {name: 'Nexus', role: 'Gunner', specialty: 'Suppression', health: 100, status: 'ready', x: 70, y: 50},
+        {name: 'Echo', role: 'Medic', specialty: 'Combat support', health: 100, status: 'ready', x: 80, y: 50}
+      ];
+    }
+
+    aiSoldiers[gameId] = squad;
+
+    socket.emit('tactical:missionBriefing', {
+      gameId,
+      squad,
+      scenario: data.scenario
+    });
+
+    console.log(`🎖️ Started ${data.scenario} mission: ${gameId} with ${squad.length} soldiers`);
+  });
+
+  socket.on('tactical:sendCommand', async (data) => {
+    if (data.gameId && aiSoldiers[data.gameId]) {
+      await processAICommand(data.gameId, data.command, socket);
+
+      const soldiers = aiSoldiers[data.gameId];
+      soldiers.forEach(soldier => {
+        if (Math.random() > 0.6) {
+          soldier.status = 'moving';
+          setTimeout(() => { soldier.status = 'ready'; }, 2000);
+        }
+        if (Math.random() > 0.8) {
+          soldier.health -= 10;
+          soldier.status = 'engaged';
+        }
+      });
+
+      socket.emit('tactical:squadUpdate', {
+        squad: soldiers,
+        gameState: {
+          missionStatus: 'ACTIVE',
+          time: 300,
+          casualties: soldiers.filter(s => s.health <= 0).length,
+          enemiesNeutralized: Math.floor(Math.random() * 5),
+          situation: 'Units in combat, awaiting next command'
+        }
+      });
+    }
+  });
 });
 
 // ===================
