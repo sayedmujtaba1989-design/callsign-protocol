@@ -46,8 +46,15 @@ export default function AICommandSimulator({ user, onGameEnd }) {
         console.error('❌ Connection Error:', error);
       });
 
+      // Listen for any socket events (for debugging)
+      const originalEmit = newSocket.emit;
+      newSocket.emit = function(event, ...args) {
+        console.log('📤 EMIT:', event, args);
+        return originalEmit.apply(this, [event, ...args]);
+      };
+
       newSocket.on('tactical:missionBriefing', (data) => {
-        console.log('🎖️ Mission briefing received:', data);
+        console.log('✅ RECEIVED: tactical:missionBriefing', data);
         setSquad(data.squad);
         setGameId(data.gameId);
         setScreen('command');
