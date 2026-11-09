@@ -174,13 +174,14 @@ export default function TacticalGame({ user, onGameEnd }) {
 
   // Canvas rendering for TOC
   useEffect(() => {
-    if (gameState !== 'toc' || !canvasRef.current) return;
+    try {
+      if (gameState !== 'toc' || !canvasRef.current) return;
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    let animationId;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      let animationId;
 
-    const drawCanvas = () => {
+      const drawCanvas = () => {
       // Clear background
       ctx.fillStyle = '#1a2a4a';
       ctx.fillRect(0, 0, 400, 400);
@@ -258,18 +259,17 @@ export default function TacticalGame({ user, onGameEnd }) {
       animationId = requestAnimationFrame(drawCanvas);
     };
 
-    animationId = requestAnimationFrame(drawCanvas);
-    return () => cancelAnimationFrame(animationId);
+      animationId = requestAnimationFrame(drawCanvas);
+      return () => cancelAnimationFrame(animationId);
+    } catch (err) {
+      console.error('Canvas error:', err);
+    }
   }, [gameState, gameData]);
 
   if (gameState === 'toc') {
-    const unitsCount = gameData?.tocUnits?.length ?? 0;
-    const enemiesCount = gameData?.enemies?.length ?? 0;
-    const timeLeft = gameData?.time ?? 0;
-  if (gameState === 'toc') {
     return <div style={{background: '#1a1a2e', color: 'white', padding: '20px', minHeight: '100vh'}}>
       <h2>🎖️ Tactical Operations</h2>
-      <canvas ref={canvasRef} width="400" height="400" style={{border: '2px solid #667eea', background: '#0a0a1a'}} 
+      <canvas ref={canvasRef} width="400" height="400" style={{border: '2px solid #667eea', background: '#0a0a1a'}}
         onClick={(e) => sendOrder('move', e.clientX + ',' + e.clientY)} />
       <p>Units: {gameData?.tocUnits?.length || 0} | Enemies: {gameData?.enemies?.length || 0}</p>
       <button onClick={() => sendOrder('engage', 'enemies')} style={{padding: '10px 20px', marginRight: '10px'}}>Engage</button>
