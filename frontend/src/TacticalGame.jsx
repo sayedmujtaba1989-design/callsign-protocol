@@ -174,87 +174,77 @@ export default function TacticalGame({ user, onGameEnd }) {
 
   // Canvas rendering for TOC
   useEffect(() => {
-    return; // DISABLED - testing if canvas is the problem
     try {
       if (gameState !== 'toc' || !canvasRef.current) return;
 
       const canvas = canvasRef.current;
+      if (!canvas) return;
       const ctx = canvas.getContext('2d');
+      if (!ctx) return;
       let animationId;
 
       const drawCanvas = () => {
-      // Clear background
-      ctx.fillStyle = '#1a2a4a';
-      ctx.fillRect(0, 0, 400, 400);
+      try {
+        // Clear background
+        ctx.fillStyle = '#1a2a4a';
+        ctx.fillRect(0, 0, 400, 400);
 
-      // Draw grid
-      ctx.strokeStyle = '#334455';
-      ctx.lineWidth = 1;
-      for (let i = 0; i <= 10; i++) {
+        // Draw grid
+        ctx.strokeStyle = '#334455';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 10; i++) {
+          ctx.beginPath();
+          ctx.moveTo(i * 40, 0);
+          ctx.lineTo(i * 40, 400);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, i * 40);
+          ctx.lineTo(400, i * 40);
+          ctx.stroke();
+        }
+
+        // Draw crosshair
+        ctx.strokeStyle = '#667eea';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(i * 40, 0);
-        ctx.lineTo(i * 40, 400);
+        ctx.moveTo(200, 185);
+        ctx.lineTo(200, 215);
+        ctx.moveTo(185, 200);
+        ctx.lineTo(215, 200);
         ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, i * 40);
-        ctx.lineTo(400, i * 40);
-        ctx.stroke();
+      } catch (e) {
+        console.log('Grid/crosshair error:', e);
       }
 
-      // Draw crosshair
-      ctx.strokeStyle = '#667eea';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(200, 185);
-      ctx.lineTo(200, 215);
-      ctx.moveTo(185, 200);
-      ctx.lineTo(215, 200);
-      ctx.stroke();
-
-      // Draw your units (blue)
+      // Draw units and enemies
       try {
-        const units = gameData?.tocUnits || gameData?.groundUnits || [];
-        if (Array.isArray(units) && units.length > 0) {
-          units.forEach((unit, i) => {
-            if (!unit) return;
-            const x = Math.max(10, Math.min(390, unit.x || 100 + i * 50));
-            const y = Math.max(10, Math.min(390, unit.y || 100 + i * 50));
-            ctx.fillStyle = '#4da6ff';
-            ctx.beginPath();
-            ctx.arc(x, y, 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 10px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(unit.name?.charAt(0) || String(i + 1), x, y);
+        // Draw blue units
+        const units = gameData?.tocUnits;
+        if (units && Array.isArray(units)) {
+          units.forEach((u, i) => {
+            if (u && typeof u.x === 'number' && typeof u.y === 'number') {
+              ctx.fillStyle = '#4da6ff';
+              ctx.beginPath();
+              ctx.arc(u.x, u.y, 8, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          });
+        }
+
+        // Draw red enemies
+        const enemies = gameData?.enemies;
+        if (enemies && Array.isArray(enemies)) {
+          enemies.forEach((e) => {
+            if (e && typeof e.x === 'number' && typeof e.y === 'number') {
+              ctx.fillStyle = '#ff4444';
+              ctx.beginPath();
+              ctx.arc(e.x, e.y, 7, 0, Math.PI * 2);
+              ctx.fill();
+            }
           });
         }
       } catch (err) {
-        console.error('Error drawing units:', err);
-      }
-
-      // Draw enemies (red)
-      try {
-        const enemies = gameData?.enemies || [];
-        if (Array.isArray(enemies) && enemies.length > 0) {
-          enemies.forEach((enemy) => {
-            if (!enemy) return;
-            const x = Math.max(10, Math.min(390, enemy.x || Math.random() * 400));
-            const y = Math.max(10, Math.min(390, enemy.y || Math.random() * 400));
-            ctx.fillStyle = '#ff4444';
-            ctx.beginPath();
-            ctx.arc(x, y, 7, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 10px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('E', x, y);
-          });
-        }
-      } catch (err) {
-        console.error('Error drawing enemies:', err);
+        console.log('Units/enemies error:', err);
       }
 
       animationId = requestAnimationFrame(drawCanvas);
