@@ -71,9 +71,16 @@ export default function TacticalGame({ user, onGameEnd }) {
   }, []);
 
   const createGame = () => {
-    if (socket) {
-      socket.emit('tactical:createGame', { scenario: 'patrol' });
+    if (!socket) {
+      alert('Connecting to server... please wait and try again');
+      return;
     }
+    if (!socket.connected) {
+      alert('Server connection not ready. Please wait...');
+      return;
+    }
+    console.log('Creating TOC game...');
+    socket.emit('tactical:createGame', { scenario: 'patrol' });
   };
 
   const joinGame = () => {
