@@ -1347,8 +1347,21 @@ Actions: moving 30 units northwest / taking fire from building / suppressing ene
 // Real-time mission simulation
 socket.on('tactical:startMission', async (data) => {
   const gameId = `mission_${Date.now()}`;
-  const squad = await generateSquad(data.scenario);
-  
+  let squad = [];
+
+  try {
+    squad = await generateSquad(data.scenario);
+  } catch (err) {
+    console.error('Squad generation failed, using fallback:', err.message);
+    // Fallback squad
+    squad = [
+      {name: 'Falcon', role: 'Leader', specialty: 'Tactical command', health: 100, status: 'ready', x: 50, y: 50},
+      {name: 'Storm', role: 'Rifleman', specialty: 'Assault', health: 100, status: 'ready', x: 60, y: 50},
+      {name: 'Nexus', role: 'Gunner', specialty: 'Suppression', health: 100, status: 'ready', x: 70, y: 50},
+      {name: 'Echo', role: 'Medic', specialty: 'Combat support', health: 100, status: 'ready', x: 80, y: 50}
+    ];
+  }
+
   aiSoldiers[gameId] = squad;
 
   socket.emit('tactical:missionBriefing', {
@@ -1357,7 +1370,7 @@ socket.on('tactical:startMission', async (data) => {
     scenario: data.scenario
   });
 
-  console.log(`🎖️ Started ${data.scenario} mission: ${gameId}`);
+  console.log(`🎖️ Started ${data.scenario} mission: ${gameId} with ${squad.length} soldiers`);
 });
 
 socket.on('tactical:sendCommand', async (data) => {

@@ -79,6 +79,14 @@ export default function AICommandSimulator({ user, onGameEnd }) {
   };
 
   if (screen === 'briefing') {
+    const handleStartMission = (scenario) => {
+      if (!socket || !socket.connected) {
+        alert('Connecting to server... try again in a moment');
+        return;
+      }
+      socket.emit('tactical:startMission', {scenario});
+    };
+
     return (
       <div style={{
         padding: '40px',
@@ -90,9 +98,9 @@ export default function AICommandSimulator({ user, onGameEnd }) {
       }}>
         <h1>🎖️ TACTICAL COMMAND CENTER</h1>
         <p>Real-Time AI Soldier Control Simulator</p>
-        
+
         <div style={{marginTop: '40px'}}>
-          <button onClick={() => socket?.emit('tactical:startMission', {scenario: 'rescue'})}
+          <button onClick={() => handleStartMission('rescue')}
             style={{
               display: 'block',
               width: '300px',
@@ -108,7 +116,7 @@ export default function AICommandSimulator({ user, onGameEnd }) {
             }}>
             🆘 RESCUE MISSION
           </button>
-          <button onClick={() => socket?.emit('tactical:startMission', {scenario: 'defend'})}
+          <button onClick={() => handleStartMission('defend')}
             style={{
               display: 'block',
               width: '300px',
