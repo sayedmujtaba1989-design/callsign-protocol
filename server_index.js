@@ -1059,7 +1059,6 @@ Make it realistic, tactical, and with 2-3 decision points. Vary the scenarios ea
       });
 
         // Update squad status
-        const soldiers = aiSoldiers[data.gameId];
         soldiers.forEach(s => { s.status = 'ready'; });
 
         socket.emit('tactical:squadUpdate', {
