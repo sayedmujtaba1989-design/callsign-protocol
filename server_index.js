@@ -1008,6 +1008,7 @@ Make it realistic, tactical, and with 2-3 decision points. Vary the scenarios ea
 
   // Real-time mission simulation - simplified (no AI generation)
   socket.on('tactical:startMission', (data) => {
+    console.log('🎖️ [BACKEND] tactical:startMission received:', data);
     try {
       const gameId = `mission_${Date.now()}`;
 
@@ -1021,11 +1022,13 @@ Make it realistic, tactical, and with 2-3 decision points. Vary the scenarios ea
 
       aiSoldiers[gameId] = squad;
 
+      console.log('🎖️ [BACKEND] About to emit tactical:missionBriefing');
       socket.emit('tactical:missionBriefing', {
         gameId,
         squad,
         scenario: data.scenario
       });
+      console.log('🎖️ [BACKEND] Emitted tactical:missionBriefing');
 
       console.log(`✅ Mission started: ${data.scenario} (${gameId})`);
     } catch (err) {
