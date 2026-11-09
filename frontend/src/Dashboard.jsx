@@ -49,7 +49,7 @@ export default function Dashboard({ user, onLogout, onPlayGame }) {
       </div>
 
       <div style={styles.tabs}>
-        {['stats', 'leaderboard', 'rankings', 'play', 'tactical'].map(tab => (
+        {['stats', 'leaderboard', 'rankings', 'play', 'tactical', 'aicommand'].map(tab => (
           <button
             key={tab}
             onClick={() => {
@@ -57,6 +57,8 @@ export default function Dashboard({ user, onLogout, onPlayGame }) {
                 onPlayGame();
               } else if (tab === 'tactical') {
                 onPlayGame && onPlayGame('tactical');
+              } else if (tab === 'aicommand') {
+                onPlayGame && onPlayGame('aicommand');
               } else {
                 setActiveTab(tab);
               }
@@ -67,7 +69,7 @@ export default function Dashboard({ user, onLogout, onPlayGame }) {
               color: activeTab === tab ? 'white' : '#333',
             }}
           >
-            {tab === 'play' ? '🎮 Action' : tab === 'tactical' ? '🎖️ Tactical' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'play' ? '🎮 Action' : tab === 'tactical' ? '🎖️ Tactical' : tab === 'aicommand' ? '🤖 AI Command' : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
       </div>

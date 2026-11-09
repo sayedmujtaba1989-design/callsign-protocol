@@ -3,11 +3,12 @@ import Login from './Login';
 import Dashboard from './Dashboard';
 import Game from './Game';
 import TacticalGame from './TacticalGame';
+import AICommandSimulator from './AICommandSimulator';
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState('dashboard'); // dashboard, game, or tactical
-  const [gameMode, setGameMode] = useState(null); // 'action' or 'tactical'
+  const [view, setView] = useState('dashboard'); // dashboard, game, tactical, or aicommand
+  const [gameMode, setGameMode] = useState(null); // 'action', 'tactical', or 'aicommand'
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -47,6 +48,9 @@ export default function App() {
   if (view === 'game') {
     if (gameMode === 'tactical') {
       return <TacticalGame user={user} onGameEnd={handleGameEnd} />;
+    }
+    if (gameMode === 'aicommand') {
+      return <AICommandSimulator user={user} onGameEnd={handleGameEnd} />;
     }
     return <Game user={user} onGameEnd={handleGameEnd} />;
   }

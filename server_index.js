@@ -1245,3 +1245,147 @@ process.on('SIGTERM', async () => {
 });
 
 module.exports = app;
+
+// ==========================================
+// REAL-TIME AI SOLDIER COMMAND SIMULATOR
+// ==========================================
+
+// AI-controlled soldiers
+let aiSoldiers = {};
+
+// Generate AI soldier squad
+async function generateSquad(scenario) {
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic();
+
+    const response = await client.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: `Generate 4 tactical soldiers for a ${scenario} mission. Return ONLY JSON (no markdown):
+{
+  "soldiers": [
+    {"name": "CallsignName", "role": "Rifleman/Gunner/Medic/Leader", "specialty": "Brief specialty", "health": 100, "status": "ready", "x": 50, "y": 50}
+  ]
+}
+
+Make realistic military names and roles.`
+      }]
+    });
+
+    const content = response.content[0].text;
+    const squad = JSON.parse(content);
+    return squad.soldiers || [];
+  } catch (err) {
+    console.error('Squad generation failed:', err.message);
+    return [
+      {name: 'Falcon', role: 'Leader', specialty: 'Tactical command', health: 100, status: 'ready', x: 50, y: 50},
+      {name: 'Storm', role: 'Rifleman', specialty: 'Assault', health: 100, status: 'ready', x: 60, y: 50},
+      {name: 'Nexus', role: 'Gunner', specialty: 'Suppression', health: 100, status: 'ready', x: 70, y: 50},
+      {name: 'Echo', role: 'Medic', specialty: 'Combat support', health: 100, status: 'ready', x: 80, y: 50}
+    ];
+  }
+}
+
+// AI interprets commands and controls soldiers
+async function processAICommand(gameId, command, socket) {
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic();
+
+    const soldiers = aiSoldiers[gameId];
+    if (!soldiers) return;
+
+    const soldierNames = soldiers.map(s => s.name).join(', ');
+
+    const response = await client.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 500,
+      messages: [{
+        role: 'user',
+        content: `You are ${soldierNames}, a tactical squad. The TOC commands: "${command}"
+
+Respond as the FIRST soldier to speak, then any others who need to respond. Keep it tactical and brief.
+
+Return JSON (ONLY):
+{
+  "responses": [
+    {"soldier": "SoldierName", "action": "movement/combat/status", "message": "What they say"}
+  ],
+  "situation": "Current battlefield situation"
+}
+
+Actions: moving 30 units northwest / taking fire from building / suppressing enemy / advancing / holding position`
+      }]
+    });
+
+    const content = response.content[0].text;
+    const aiResponse = JSON.parse(content);
+
+    // Broadcast AI responses to TOC
+    aiResponse.responses.forEach(resp => {
+      socket.emit('tactical:aiResponse', {
+        unit: resp.soldier,
+        message: resp.message,
+        action: resp.action
+      });
+    });
+
+    // Update situation
+    socket.emit('tactical:situationUpdate', {
+      situation: aiResponse.situation
+    });
+
+    console.log(`🤖 AI Squad: ${aiResponse.responses[0].message}`);
+  } catch (err) {
+    console.error('AI command processing failed:', err.message);
+  }
+}
+
+// Real-time mission simulation
+socket.on('tactical:startMission', async (data) => {
+  const gameId = `mission_${Date.now()}`;
+  const squad = await generateSquad(data.scenario);
+  
+  aiSoldiers[gameId] = squad;
+
+  socket.emit('tactical:missionBriefing', {
+    gameId,
+    squad,
+    scenario: data.scenario
+  });
+
+  console.log(`🎖️ Started ${data.scenario} mission: ${gameId}`);
+});
+
+socket.on('tactical:sendCommand', async (data) => {
+  if (data.gameId && aiSoldiers[data.gameId]) {
+    await processAICommand(data.gameId, data.command, socket);
+
+    // Simulate combat
+    const soldiers = aiSoldiers[data.gameId];
+    soldiers.forEach(soldier => {
+      if (Math.random() > 0.6) {
+        soldier.status = 'moving';
+        setTimeout(() => { soldier.status = 'ready'; }, 2000);
+      }
+      if (Math.random() > 0.8) {
+        soldier.health -= 10;
+        soldier.status = 'engaged';
+      }
+    });
+
+    socket.emit('tactical:squadUpdate', {
+      squad: soldiers,
+      gameState: {
+        missionStatus: 'ACTIVE',
+        time: 300,
+        casualties: soldiers.filter(s => s.health <= 0).length,
+        enemiesNeutralized: Math.floor(Math.random() * 5),
+        situation: 'Units in combat, awaiting next command'
+      }
+    });
+  }
+});
