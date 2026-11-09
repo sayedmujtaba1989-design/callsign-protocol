@@ -501,6 +501,7 @@ app.get('/api/rankings', async (req, res) => {
 const activeMatches = new Map();
 const connectedPlayers = new Map();
 const matchmakingQueue = [];
+const activeGames = new Map(); // For tactical games (TOC + Ground)
 
 io.on('connection', (socket) => {
   console.log(`✅ Player connected: ${socket.id}`);
@@ -592,6 +593,102 @@ io.on('connection', (socket) => {
         victimId: data.victimId,
         victimName: data.victimName,
         timestamp: Date.now()
+      });
+    }
+  });
+
+  // Tactical Game - TOC creates scenario
+  socket.on('tactical:createGame', (data) => {
+    const gameId = `game_${Date.now()}`;
+    const game = {
+      id: gameId,
+      toc: { socketId: socket.id, userId: socket.userId, username: socket.username },
+      groundUnits: [],
+      scenario: data.scenario || 'patrol',
+      state: {
+        tocUnits: [
+          { id: 'u1', name: 'Alpha', x: 50, y: 50, health: 100 },
+          { id: 'u2', name: 'Bravo', x: 80, y: 50, health: 100 },
+        ],
+        enemies: [
+          { id: 'e1', x: 200, y: 150, health: 50, revealed: false },
+          { id: 'e2', x: 250, y: 200, health: 50, revealed: false },
+        ],
+        tocIntel: [], // Partial intel TOC sees
+        time: 300 // 5 minutes
+      },
+      createdAt: Date.now()
+    };
+
+    activeGames.set(gameId, game);
+    socket.join(gameId);
+    socket.emit('tactical:gameCreated', { gameId, role: 'TOC' });
+    console.log(`🎖️ TOC created tactical game: ${gameId}`);
+  });
+
+  // Tactical Game - Ground unit joins
+  socket.on('tactical:joinAsGround', (data) => {
+    const game = activeGames.get(data.gameId);
+    if (!game) return socket.emit('error', { message: 'Game not found' });
+
+    game.groundUnits.push({
+      socketId: socket.id,
+      userId: socket.userId,
+      username: socket.username,
+      unitId: `ground_${game.groundUnits.length + 1}`,
+      x: 50 + (game.groundUnits.length * 20),
+      y: 50 + (game.groundUnits.length * 20)
+    });
+
+    socket.join(data.gameId);
+    socket.emit('tactical:gameJoined', { gameId: data.gameId, role: 'GROUND' });
+    io.to(data.gameId).emit('tactical:playerJoined', { username: socket.username, role: 'GROUND' });
+    console.log(`🪖 Ground unit joined: ${socket.username}`);
+  });
+
+  // TOC sends order to units
+  socket.on('tactical:sendOrder', (data) => {
+    const game = activeGames.get(data.gameId);
+    if (!game || game.toc.socketId !== socket.id) return;
+
+    io.to(data.gameId).emit('tactical:orderReceived', {
+      order: data.order,
+      target: data.target,
+      timestamp: Date.now()
+    });
+    console.log(`📍 TOC Order: ${data.order} to ${data.target}`);
+  });
+
+  // Ground unit reports position
+  socket.on('tactical:unitPosition', (data) => {
+    const game = activeGames.get(data.gameId);
+    if (!game) return;
+
+    // Update ground unit position
+    const unit = game.groundUnits.find(u => u.socketId === socket.id);
+    if (unit) {
+      unit.x = data.x;
+      unit.y = data.y;
+
+      // Check for enemy contact (fog of war)
+      game.state.enemies.forEach(enemy => {
+        const dist = Math.hypot(enemy.x - unit.x, enemy.y - unit.y);
+        if (dist < 80) enemy.revealed = true;
+      });
+
+      // Broadcast to TOC only partial intel
+      io.to(game.toc.socketId).emit('tactical:unitReport', {
+        unit: unit.username,
+        x: data.x,
+        y: data.y,
+        status: data.status
+      });
+
+      // Broadcast full state to all ground units
+      io.to(data.gameId).emit('tactical:stateUpdate', {
+        groundUnits: game.groundUnits.map(u => ({ username: u.username, x: u.x, y: u.y })),
+        enemies: game.state.enemies,
+        time: game.state.time
       });
     }
   });
