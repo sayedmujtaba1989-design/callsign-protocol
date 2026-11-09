@@ -3,7 +3,7 @@ import axios from 'axios';
 
 const API_BASE = 'https://callsign-protocol.onrender.com/api';
 
-export default function Dashboard({ user, onLogout }) {
+export default function Dashboard({ user, onLogout, onPlayGame }) {
   const [stats, setStats] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [rankings, setRankings] = useState([]);
@@ -49,17 +49,23 @@ export default function Dashboard({ user, onLogout }) {
       </div>
 
       <div style={styles.tabs}>
-        {['stats', 'leaderboard', 'rankings'].map(tab => (
+        {['stats', 'leaderboard', 'rankings', 'play'].map(tab => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              if (tab === 'play') {
+                onPlayGame();
+              } else {
+                setActiveTab(tab);
+              }
+            }}
             style={{
               ...styles.tabBtn,
               background: activeTab === tab ? '#667eea' : '#ddd',
               color: activeTab === tab ? 'white' : '#333',
             }}
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'play' ? '🎮 Play Game' : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
       </div>

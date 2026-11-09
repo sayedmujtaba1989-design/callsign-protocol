@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Login from './Login';
 import Dashboard from './Dashboard';
+import Game from './Game';
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [view, setView] = useState('dashboard'); // dashboard or game
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -26,9 +28,21 @@ export default function App() {
     setUser(null);
   };
 
-  return user ? (
-    <Dashboard user={user} onLogout={handleLogout} />
+  const handlePlayGame = () => {
+    setView('game');
+  };
+
+  const handleGameEnd = () => {
+    setView('dashboard');
+  };
+
+  if (!user) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  return view === 'game' ? (
+    <Game user={user} onGameEnd={handleGameEnd} />
   ) : (
-    <Login onLoginSuccess={handleLoginSuccess} />
+    <Dashboard user={user} onLogout={handleLogout} onPlayGame={handlePlayGame} />
   );
 }
