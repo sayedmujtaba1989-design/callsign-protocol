@@ -602,8 +602,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  // REAL TACTICAL SCENARIOS with decision-making
-  const SCENARIOS = {
+  // HARDCODED FALLBACK SCENARIOS
+  const HARDCODED_SCENARIOS = {
     rescue: {
       name: '🆘 RESCUE VIP',
       objective: 'Extract trapped diplomat',
@@ -683,10 +683,68 @@ io.on('connection', (socket) => {
     }
   };
 
-  // Tactical Game - TOC creates scenario
-  socket.on('tactical:createGame', (data) => {
+  // FUNCTION: Generate AI scenarios dynamically using Claude API
+  async function generateAIScenario(type) {
+    try {
+      // Use Claude to generate a unique scenario
+      const Anthropic = require('@anthropic-ai/sdk');
+      const client = new Anthropic();
+
+      const response = await client.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: `Generate a unique tactical military scenario in JSON format. Type: ${type}
+
+Return ONLY valid JSON (no markdown, no explanation):
+{
+  "name": "emoji MISSION_NAME",
+  "objective": "One sentence objective",
+  "units": [
+    {"id": "u1", "name": "Alpha", "x": 50, "y": 50, "health": 100, "role": "RoleName"},
+    {"id": "u2", "name": "Bravo", "x": 80, "y": 50, "health": 100, "role": "RoleName"}
+  ],
+  "enemies": [
+    {"id": "e1", "x": 250, "y": 150, "health": 50}
+  ],
+  "problems": [
+    {"time": 15, "type": "problemType", "text": "emoji Problem text"}
+  ],
+  "decisions": {
+    "problemType": [
+      {"label": "emoji Option 1", "risk": "low|medium|high", "consequence": "outcome", "morale": 5}
+    ]
+  }
+}
+
+Make it realistic, tactical, and with 2-3 decision points. Vary the scenarios each time.`
+        }]
+      });
+
+      const content = response.content[0].text;
+      // Parse JSON from response
+      const scenario = JSON.parse(content);
+      console.log(`🤖 AI Generated scenario: ${scenario.name}`);
+      return scenario;
+    } catch (error) {
+      console.error('AI generation failed, using fallback:', error.message);
+      return HARDCODED_SCENARIOS[type] || HARDCODED_SCENARIOS.patrol;
+    }
+  }
+
+  // Tactical Game - TOC creates scenario (AI-generated or hardcoded fallback)
+  socket.on('tactical:createGame', async (data) => {
     const gameId = `game_${Date.now()}`;
-    const selectedScenario = SCENARIOS[data.scenario] || SCENARIOS.patrol;
+
+    // Try AI generation first, fall back to hardcoded
+    let selectedScenario;
+    try {
+      selectedScenario = await generateAIScenario(data.scenario || 'patrol');
+    } catch (err) {
+      console.error('Using hardcoded scenario:', err.message);
+      selectedScenario = HARDCODED_SCENARIOS[data.scenario] || HARDCODED_SCENARIOS.patrol;
+    }
 
     const game = {
       id: gameId,
