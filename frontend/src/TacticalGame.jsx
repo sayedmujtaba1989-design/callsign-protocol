@@ -18,11 +18,20 @@ export default function TacticalGame({ user, onGameEnd }) {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5
+      reconnectionAttempts: 5,
+      transports: ['websocket', 'polling']
     });
 
     newSocket.on('connect', () => {
-      console.log('Connected to tactical server');
+      console.log('✅ Connected to tactical server');
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('❌ Socket connection error:', error);
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('⚠️ Disconnected from tactical server');
     });
 
     newSocket.on('tactical:gameCreated', (data) => {

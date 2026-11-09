@@ -30,7 +30,12 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://callsign-protocol.vercel.app',
+      process.env.CLIENT_URL
+    ].filter(Boolean),
     methods: ['GET', 'POST'],
     credentials: true
   }
