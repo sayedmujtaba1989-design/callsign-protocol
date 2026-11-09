@@ -1006,37 +1006,42 @@ Make it realistic, tactical, and with 2-3 decision points. Vary the scenarios ea
   // REAL-TIME AI SOLDIER COMMAND SIMULATOR
   // ==========================================
 
-  // Real-time mission simulation
-  socket.on('tactical:startMission', async (data) => {
-    const gameId = `mission_${Date.now()}`;
-    let squad = [];
-
+  // Real-time mission simulation - simplified (no AI generation)
+  socket.on('tactical:startMission', (data) => {
     try {
-      squad = await generateSquad(data.scenario);
-    } catch (err) {
-      console.error('Squad generation failed, using fallback:', err.message);
-      squad = [
+      const gameId = `mission_${Date.now()}`;
+
+      // Simple realistic squad
+      const squad = [
         {name: 'Falcon', role: 'Leader', specialty: 'Tactical command', health: 100, status: 'ready', x: 50, y: 50},
         {name: 'Storm', role: 'Rifleman', specialty: 'Assault', health: 100, status: 'ready', x: 60, y: 50},
         {name: 'Nexus', role: 'Gunner', specialty: 'Suppression', health: 100, status: 'ready', x: 70, y: 50},
         {name: 'Echo', role: 'Medic', specialty: 'Combat support', health: 100, status: 'ready', x: 80, y: 50}
       ];
+
+      aiSoldiers[gameId] = squad;
+
+      socket.emit('tactical:missionBriefing', {
+        gameId,
+        squad,
+        scenario: data.scenario
+      });
+
+      console.log(`✅ Mission started: ${data.scenario} (${gameId})`);
+    } catch (err) {
+      console.error('❌ Mission error:', err);
+      socket.emit('error', {message: err.message});
     }
-
-    aiSoldiers[gameId] = squad;
-
-    socket.emit('tactical:missionBriefing', {
-      gameId,
-      squad,
-      scenario: data.scenario
-    });
-
-    console.log(`🎖️ Started ${data.scenario} mission: ${gameId} with ${squad.length} soldiers`);
   });
 
-  socket.on('tactical:sendCommand', async (data) => {
-    if (data.gameId && aiSoldiers[data.gameId]) {
-      await processAICommand(data.gameId, data.command, socket);
+  socket.on('tactical:sendCommand', (data) => {
+    try {
+      if (data.gameId && aiSoldiers[data.gameId]) {
+        // Simple response without AI
+        socket.emit('tactical:aiResponse', {
+          unit: 'Falcon',
+          message: `Order received: "${data.command}" - Soldiers executing command`
+        });
 
       const soldiers = aiSoldiers[data.gameId];
       soldiers.forEach(soldier => {
@@ -1050,16 +1055,24 @@ Make it realistic, tactical, and with 2-3 decision points. Vary the scenarios ea
         }
       });
 
-      socket.emit('tactical:squadUpdate', {
-        squad: soldiers,
-        gameState: {
-          missionStatus: 'ACTIVE',
-          time: 300,
-          casualties: soldiers.filter(s => s.health <= 0).length,
-          enemiesNeutralized: Math.floor(Math.random() * 5),
-          situation: 'Units in combat, awaiting next command'
-        }
-      });
+        // Update squad status
+        const soldiers = aiSoldiers[data.gameId];
+        soldiers.forEach(s => { s.status = 'ready'; });
+
+        socket.emit('tactical:squadUpdate', {
+          squad: soldiers,
+          gameState: {
+            missionStatus: 'ACTIVE',
+            time: 300,
+            casualties: 0,
+            enemiesNeutralized: Math.floor(Math.random() * 5),
+            situation: 'Units standing by for next orders'
+          }
+        });
+      }
+    } catch (err) {
+      console.error('❌ Command error:', err);
+      socket.emit('error', {message: err.message});
     }
   });
 });
