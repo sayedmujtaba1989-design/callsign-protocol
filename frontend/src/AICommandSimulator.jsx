@@ -6,10 +6,11 @@ const API_BASE = 'https://callsign-protocol.onrender.com';
 export default function AICommandSimulator({ user, onGameEnd }) {
   const [screen, setScreen] = useState('briefing');
   const [gameId, setGameId] = useState(null);
-  const [socket, setSocket] = useState(null);
   const [squad, setSquad] = useState([]);
   const [commandLog, setCommandLog] = useState([]);
   const [inputCommand, setInputCommand] = useState('');
+  const [socketConnected, setSocketConnected] = useState(false);
+  const socketRef = useRef(null);
   const [gameState, setGameState] = useState({
     missionStatus: 'ACTIVE',
     time: 300,
@@ -19,18 +20,26 @@ export default function AICommandSimulator({ user, onGameEnd }) {
   });
 
   useEffect(() => {
-    let newSocket = null;
     try {
-      newSocket = io(API_BASE, {
+      const newSocket = io(API_BASE, {
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionAttempts: 5,
         transports: ['websocket', 'polling']
       });
 
-      newSocket.on('connect', () => console.log('✅ Connected'));
-      
+      newSocket.on('connect', () => {
+        console.log('✅ Socket Connected');
+        setSocketConnected(true);
+      });
+
+      newSocket.on('disconnect', () => {
+        console.log('❌ Socket Disconnected');
+        setSocketConnected(false);
+      });
+
       newSocket.on('tactical:missionBriefing', (data) => {
+        console.log('🎖️ Mission briefing received:', data);
         setSquad(data.squad);
         setGameId(data.gameId);
         setScreen('command');
@@ -50,18 +59,18 @@ export default function AICommandSimulator({ user, onGameEnd }) {
         }]);
       });
 
-      setSocket(newSocket);
+      socketRef.current = newSocket;
     } catch (err) {
-      console.error('Socket error:', err);
+      console.error('Socket init error:', err);
     }
 
     return () => {
-      if (newSocket) newSocket.close();
+      if (socketRef.current) socketRef.current.close();
     };
   }, []);
 
   const sendCommand = () => {
-    if (!inputCommand.trim() || !socket) return;
+    if (!inputCommand.trim() || !socketRef.current) return;
 
     setCommandLog(prev => [...prev, {
       type: 'toc',
@@ -69,7 +78,7 @@ export default function AICommandSimulator({ user, onGameEnd }) {
       timestamp: new Date()
     }]);
 
-    socket.emit('tactical:sendCommand', {
+    socketRef.current.emit('tactical:sendCommand', {
       gameId,
       command: inputCommand,
       userId: user?.userId
@@ -80,11 +89,13 @@ export default function AICommandSimulator({ user, onGameEnd }) {
 
   if (screen === 'briefing') {
     const handleStartMission = (scenario) => {
-      if (!socket || !socket.connected) {
-        alert('Connecting to server... try again in a moment');
+      if (!socketRef.current || !socketRef.current.connected) {
+        console.error('Socket not ready. Connected:', socketRef.current?.connected);
+        alert('Connecting to server... please wait and try again');
         return;
       }
-      socket.emit('tactical:startMission', {scenario});
+      console.log('📡 Emitting tactical:startMission with scenario:', scenario);
+      socketRef.current.emit('tactical:startMission', {scenario});
     };
 
     return (
@@ -98,37 +109,46 @@ export default function AICommandSimulator({ user, onGameEnd }) {
       }}>
         <h1>🎖️ TACTICAL COMMAND CENTER</h1>
         <p>Real-Time AI Soldier Control Simulator</p>
+        <p style={{fontSize: '12px', color: socketConnected ? '#51cf66' : '#ff6b6b'}}>
+          {socketConnected ? '✅ Server Connected' : '⏳ Connecting to server...'}
+        </p>
 
         <div style={{marginTop: '40px'}}>
-          <button onClick={() => handleStartMission('rescue')}
+          <button
+            onClick={() => handleStartMission('rescue')}
+            disabled={!socketConnected}
             style={{
               display: 'block',
               width: '300px',
               margin: '15px auto',
               padding: '20px',
-              background: '#ff6b6b',
+              background: socketConnected ? '#ff6b6b' : '#999',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               fontSize: '18px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: socketConnected ? 'pointer' : 'not-allowed',
+              opacity: socketConnected ? 1 : 0.6
             }}>
             🆘 RESCUE MISSION
           </button>
-          <button onClick={() => handleStartMission('defend')}
+          <button
+            onClick={() => handleStartMission('defend')}
+            disabled={!socketConnected}
             style={{
               display: 'block',
               width: '300px',
               margin: '15px auto',
               padding: '20px',
-              background: '#667eea',
+              background: socketConnected ? '#667eea' : '#999',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               fontSize: '18px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: socketConnected ? 'pointer' : 'not-allowed',
+              opacity: socketConnected ? 1 : 0.6
             }}>
             🛡️ DEFEND BASE
           </button>
@@ -147,7 +167,7 @@ export default function AICommandSimulator({ user, onGameEnd }) {
         fontFamily: 'Courier New, monospace',
         fontSize: '14px'
       }}>
-        
+
         {/* LEFT: Squad Status */}
         <div style={{width: '25%', background: '#1a1a2e', borderRight: '2px solid #667eea', overflowY: 'auto', padding: '20px'}}>
           <h3>🎯 SQUAD STATUS</h3>
