@@ -266,56 +266,15 @@ export default function TacticalGame({ user, onGameEnd }) {
     const unitsCount = gameData?.tocUnits?.length ?? 0;
     const enemiesCount = gameData?.enemies?.length ?? 0;
     const timeLeft = gameData?.time ?? 0;
-    const gameIdShort = gameId ? gameId.substring(0, 8) : '...';
-
-    return (
-      <div style={{padding: '20px', background: '#1a1a2e', color: 'white', minHeight: '100vh', fontFamily: 'Arial'}}>
-        <h1 style={{textAlign: 'center', margin: '0 0 20px 0'}}>🎖️ Tactical Operations Center</h1>
-        <p style={{textAlign: 'center', marginBottom: '20px'}}>Game: {gameIdShort}</p>
-
-        <div style={{display: 'flex', gap: '20px', maxWidth: '1000px', margin: '0 auto'}}>
-          {/* Canvas */}
-          <div style={{flex: 1}}>
-            <h3 style={{margin: '0 0 10px 0'}}>Battlefield</h3>
-            <canvas
-              ref={canvasRef}
-              width={400}
-              height={400}
-              style={{border: '2px solid #667eea', borderRadius: '5px', background: '#0a0a1a', cursor: 'crosshair'}}
-              onClick={(e) => {
-                const rect = canvasRef.current.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                sendOrder('move', `(${Math.round(x)}, ${Math.round(y)})`);
-              }}
-            />
-            <p style={{fontSize: '12px', color: '#aaa', marginTop: '10px'}}>🔵 Blue=Units | 🔴 Red=Enemies</p>
-          </div>
-
-          {/* Controls */}
-          <div style={{flex: 1}}>
-            <div style={{background: '#2a2a4e', padding: '15px', borderRadius: '5px', marginBottom: '15px'}}>
-              <h3 style={{margin: '0 0 10px 0'}}>Status</h3>
-              <p>Units: <strong>{unitsCount}</strong></p>
-              <p>Enemies: <strong>{enemiesCount}</strong></p>
-              <p>Time: <strong>{timeLeft}s</strong></p>
-            </div>
-
-            <div style={{background: '#2a2a4e', padding: '15px', borderRadius: '5px'}}>
-              <h3 style={{margin: '0 0 10px 0'}}>Commands</h3>
-              <button onClick={() => sendOrder('advance', 'North')} style={{display: 'block', width: '100%', padding: '10px', marginBottom: '8px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>↑ Advance</button>
-              <button onClick={() => sendOrder('hold', 'Position')} style={{display: 'block', width: '100%', padding: '10px', marginBottom: '8px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>⏸ Hold</button>
-              <button onClick={() => sendOrder('engage', 'Hostiles')} style={{display: 'block', width: '100%', padding: '10px', marginBottom: '8px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>🎯 Engage</button>
-              <button onClick={() => sendOrder('retreat', 'South')} style={{display: 'block', width: '100%', padding: '10px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>↓ Retreat</button>
-            </div>
-          </div>
-        </div>
-
-        <div style={{textAlign: 'center', marginTop: '30px'}}>
-          <button onClick={() => onGameEnd()} style={{padding: '12px 30px', background: '#666', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold'}}>Exit Game</button>
-        </div>
-      </div>
-    );
+  if (gameState === 'toc') {
+    return <div style={{background: '#1a1a2e', color: 'white', padding: '20px', minHeight: '100vh'}}>
+      <h2>🎖️ Tactical Operations</h2>
+      <canvas ref={canvasRef} width="400" height="400" style={{border: '2px solid #667eea', background: '#0a0a1a'}} 
+        onClick={(e) => sendOrder('move', e.clientX + ',' + e.clientY)} />
+      <p>Units: {gameData?.tocUnits?.length || 0} | Enemies: {gameData?.enemies?.length || 0}</p>
+      <button onClick={() => sendOrder('engage', 'enemies')} style={{padding: '10px 20px', marginRight: '10px'}}>Engage</button>
+      <button onClick={() => onGameEnd()} style={{padding: '10px 20px'}}>Exit</button>
+    </div>;
   }
 
   if (gameState === 'ground') {
