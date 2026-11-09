@@ -46,6 +46,11 @@ export default function AICommandSimulator({ user, onGameEnd }) {
         console.error('❌ Connection Error:', error);
       });
 
+      // Listen for ANY incoming event (for debugging)
+      newSocket.onAny((event, ...args) => {
+        console.log('📥 RECEIVED EVENT:', event, args);
+      });
+
       // Listen for any socket events (for debugging)
       const originalEmit = newSocket.emit;
       newSocket.emit = function(event, ...args) {
