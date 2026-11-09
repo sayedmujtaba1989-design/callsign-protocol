@@ -174,6 +174,7 @@ export default function TacticalGame({ user, onGameEnd }) {
 
   // Canvas rendering for TOC
   useEffect(() => {
+    return; // DISABLED - testing if canvas is the problem
     try {
       if (gameState !== 'toc' || !canvasRef.current) return;
 
