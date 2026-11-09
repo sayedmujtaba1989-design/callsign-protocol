@@ -627,7 +627,22 @@ io.on('connection', (socket) => {
 
     activeGames.set(gameId, game);
     socket.join(gameId);
-    socket.emit('tactical:gameCreated', { gameId, role: 'TOC' });
+
+    // Send initial game state to TOC
+    socket.emit('tactical:gameCreated', {
+      gameId,
+      role: 'TOC',
+      initialState: game.state
+    });
+
+    // Broadcast initial state to game room
+    io.to(gameId).emit('tactical:stateUpdate', {
+      groundUnits: game.groundUnits,
+      enemies: game.state.enemies,
+      tocUnits: game.state.tocUnits,
+      time: game.state.time
+    });
+
     console.log(`🎖️ TOC created tactical game: ${gameId}`);
   });
 
@@ -731,6 +746,35 @@ io.on('connection', (socket) => {
     }
   });
 });
+
+// ===================
+// Tactical Game Simulation Loop
+// ===================
+// Run every 500ms - move enemies, update state, broadcast to players
+setInterval(() => {
+  activeGames.forEach((game, gameId) => {
+    // Move enemies randomly
+    game.state.enemies.forEach(enemy => {
+      // Random walk
+      enemy.x += (Math.random() - 0.5) * 20;
+      enemy.y += (Math.random() - 0.5) * 20;
+
+      // Keep in bounds
+      enemy.x = Math.max(20, Math.min(380, enemy.x));
+      enemy.y = Math.max(20, Math.min(380, enemy.y));
+    });
+
+    // Broadcast state to all players in game
+    io.to(gameId).emit('tactical:stateUpdate', {
+      groundUnits: game.groundUnits,
+      enemies: game.state.enemies,
+      tocUnits: game.state.tocUnits,
+      time: game.state.time--
+    });
+
+    console.log(`🔄 Game ${gameId}: ${game.groundUnits.length} units, ${game.state.enemies.length} enemies`);
+  });
+}, 500);
 
 // ===================
 // Helper Functions

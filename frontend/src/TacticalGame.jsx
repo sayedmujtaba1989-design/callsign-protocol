@@ -35,10 +35,17 @@ export default function TacticalGame({ user, onGameEnd }) {
     });
 
     newSocket.on('tactical:gameCreated', (data) => {
+      console.log('🎖️ TOC game created:', data.gameId);
       setGameId(data.gameId);
       setGameState('toc');
       setRoleState('TOC');
-      setGameData({ units: [], enemies: [], intel: [] });
+      setGameData(data.initialState || {
+        tocUnits: [],
+        enemies: [],
+        groundUnits: [],
+        tocIntel: [],
+        time: 300
+      });
     });
 
     newSocket.on('tactical:gameJoined', (data) => {
@@ -67,11 +74,23 @@ export default function TacticalGame({ user, onGameEnd }) {
     });
 
     newSocket.on('tactical:stateUpdate', (data) => {
+      console.log('📍 State update:', data);
       setGameData(prev => ({
         ...prev,
-        groundUnits: data.groundUnits,
-        enemies: data.enemies,
+        groundUnits: data.groundUnits || prev.groundUnits,
+        enemies: data.enemies || prev.enemies,
+        tocUnits: data.tocUnits || prev.tocUnits,
         time: data.time
+      }));
+    });
+
+    newSocket.on('tactical:unitPositionUpdate', (data) => {
+      console.log('🎯 Unit moved:', data);
+      setGameData(prev => ({
+        ...prev,
+        groundUnits: (prev.groundUnits || []).map(u =>
+          u.id === data.unitId ? { ...u, x: data.x, y: data.y } : u
+        )
       }));
     });
 
@@ -136,6 +155,85 @@ export default function TacticalGame({ user, onGameEnd }) {
     );
   }
 
+  // Canvas rendering for TOC
+  useEffect(() => {
+    if (gameState !== 'toc' || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    let animationId;
+
+    const drawCanvas = () => {
+      // Clear background
+      ctx.fillStyle = '#1a2a4a';
+      ctx.fillRect(0, 0, 400, 400);
+
+      // Draw grid
+      ctx.strokeStyle = '#334455';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 10; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * 40, 0);
+        ctx.lineTo(i * 40, 400);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, i * 40);
+        ctx.lineTo(400, i * 40);
+        ctx.stroke();
+      }
+
+      // Draw crosshair
+      ctx.strokeStyle = '#667eea';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(200, 185);
+      ctx.lineTo(200, 215);
+      ctx.moveTo(185, 200);
+      ctx.lineTo(215, 200);
+      ctx.stroke();
+
+      // Draw your units (blue)
+      const units = gameData?.tocUnits || gameData?.groundUnits || [];
+      if (units && units.length > 0) {
+        units.forEach((unit, i) => {
+          const x = unit.x || 100 + i * 50;
+          const y = unit.y || 100 + i * 50;
+          ctx.fillStyle = '#4da6ff';
+          ctx.beginPath();
+          ctx.arc(x, y, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'white';
+          ctx.font = 'bold 10px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(unit.name?.charAt(0) || String(i + 1), x, y);
+        });
+      }
+
+      // Draw enemies (red)
+      if (gameData?.enemies) {
+        gameData.enemies.forEach((enemy) => {
+          const x = (enemy.x % 400) || Math.random() * 400;
+          const y = (enemy.y % 400) || Math.random() * 400;
+          ctx.fillStyle = '#ff4444';
+          ctx.beginPath();
+          ctx.arc(x, y, 7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'white';
+          ctx.font = 'bold 10px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('E', x, y);
+        });
+      }
+
+      animationId = requestAnimationFrame(drawCanvas);
+    };
+
+    animationId = requestAnimationFrame(drawCanvas);
+    return () => cancelAnimationFrame(animationId);
+  }, [gameState, gameData]);
+
   if (gameState === 'toc') {
     return (
       <div style={styles.tocContainer}>
@@ -160,7 +258,7 @@ export default function TacticalGame({ user, onGameEnd }) {
                 sendOrder('move', `(${Math.round(x)}, ${Math.round(y)})`);
               }}
             />
-            <p style={styles.hint}>Click map to send move orders</p>
+            <p style={styles.hint}>🔵 Blue = Units | 🔴 Red = Enemies | Click to order</p>
           </div>
 
           {/* Intel & Orders */}
