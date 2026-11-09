@@ -267,7 +267,9 @@ export default function TacticalGame({ user, onGameEnd }) {
       <div style={styles.tocContainer}>
         <div style={styles.tocHeader}>
           <h2>🎖️ Tactical Operations Center</h2>
-          <span style={styles.gameId}>Game: {gameId?.substring(0, 8)}</span>
+          <div style={styles.gameId}>
+            {gameId && `Game: ${gameId.substring(0, 8)}`}
+          </div>
         </div>
 
         <div style={styles.tocLayout}>
@@ -289,34 +291,25 @@ export default function TacticalGame({ user, onGameEnd }) {
             <p style={styles.hint}>🔵 Blue = Units | 🔴 Red = Enemies | Click to order</p>
           </div>
 
-          {/* Intel & Orders */}
+          {/* Status & Orders */}
           <div style={styles.intelSection}>
-            <div>
-              <h3>📊 Battlefield Status</h3>
-              <div style={styles.intelList}>
-                <div style={styles.intelItem}>
-                  <strong>Units:</strong> {gameData?.tocUnits?.length || 0}
-                </div>
-                <div style={styles.intelItem}>
-                  <strong>Enemies:</strong> {gameData?.enemies?.length || 0}
-                </div>
-                <div style={styles.intelItem}>
-                  <strong>Time:</strong> {gameData?.time || 0}s
-                </div>
-              </div>
+            <div style={{padding: '15px', background: '#2a2a4e', borderRadius: '5px', marginBottom: '15px'}}>
+              <h3 style={{margin: '0 0 10px 0'}}>📊 Status</h3>
+              <p style={{margin: '5px 0'}}>Units: <strong>{(gameData && gameData.tocUnits && gameData.tocUnits.length) || 0}</strong></p>
+              <p style={{margin: '5px 0'}}>Enemies: <strong>{(gameData && gameData.enemies && gameData.enemies.length) || 0}</strong></p>
+              <p style={{margin: '5px 0'}}>Time: <strong>{(gameData && gameData.time) || 0}s</strong></p>
             </div>
 
-            <div style={styles.orderPanel}>
-              <h3>⚙️ Commands</h3>
+            <div style={{padding: '15px', background: '#2a2a4e', borderRadius: '5px'}}>
+              <h3 style={{margin: '0 0 10px 0'}}>⚙️ Commands</h3>
               <button onClick={() => sendOrder('advance', 'North')} style={styles.orderBtn}>↑ Advance North</button>
               <button onClick={() => sendOrder('hold', 'Position')} style={styles.orderBtn}>⏸ Hold Position</button>
-              <button onClick={() => sendOrder('engage', 'Hostiles')} style={styles.orderBtn}>🎯 Engage Enemies</button>
+              <button onClick={() => sendOrder('engage', 'Hostiles')} style={styles.orderBtn}>🎯 Engage</button>
               <button onClick={() => sendOrder('retreat', 'South')} style={styles.orderBtn}>↓ Retreat South</button>
             </div>
           </div>
         </div>
 
-        <p style={styles.message}>{message}</p>
         <button onClick={() => onGameEnd()} style={styles.exitBtn}>Exit Game</button>
       </div>
     );
