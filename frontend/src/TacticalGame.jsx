@@ -7,7 +7,20 @@ export default function TacticalGame({ user, onGameEnd }) {
   const [screen, setScreen] = useState('mode');
   const [gameId, setGameId] = useState(null);
   const [socket, setSocket] = useState(null);
-  const [gameData, setGameData] = useState({tocUnits: [], enemies: [], combatActive: false});
+  const [scenario, setScenario] = useState(null);
+  const [objective, setObjective] = useState('');
+  const [gameData, setGameData] = useState({
+    tocUnits: [],
+    enemies: [],
+    combatActive: false,
+    time: 120,
+    missionStatus: 'ACTIVE',
+    morale: 100,
+    casualties: 0,
+    enemiesKilled: 0
+  });
+  const [problem, setProblem] = useState(null);
+  const [decisionResult, setDecisionResult] = useState(null);
   const canvasRef = useRef(null);
 
   // Initialize socket
@@ -24,10 +37,25 @@ export default function TacticalGame({ user, onGameEnd }) {
       newSocket.on('connect', () => console.log('✅ Connected'));
       newSocket.on('tactical:gameCreated', (data) => {
         setGameId(data.gameId);
+        setScenario(data.scenario);
+        setObjective(data.objective);
+        setGameData(data.initialState);
         setScreen('toc');
       });
       newSocket.on('tactical:stateUpdate', (data) => {
-        setGameData(data);
+        setGameData(prev => ({...prev, ...data}));
+      });
+      newSocket.on('tactical:missionEvent', (data) => {
+        if (data.type === 'decision') {
+          setProblem(data);
+          setDecisionResult(null);
+        } else if (data.type === 'extraction') {
+          setProblem({ text: data.text, type: 'extraction' });
+        }
+      });
+      newSocket.on('tactical:decisionResult', (data) => {
+        setDecisionResult(data);
+        setTimeout(() => setProblem(null), 3000);
       });
 
       setSocket(newSocket);
@@ -133,32 +161,116 @@ export default function TacticalGame({ user, onGameEnd }) {
     return (
       <div style={{padding: '40px', textAlign: 'center', background: '#1a1a2e', color: 'white', minHeight: '100vh'}}>
         <h1>🎖️ Callsign Protocol</h1>
-        <p>Real-Time Tactical Command Game</p>
-        <button
-          onClick={() => socket?.emit('tactical:createGame', {scenario: 'patrol'})}
-          style={{padding: '15px 40px', margin: '10px', background: '#667eea', color: 'white', border: 'none', borderRadius: '5px', fontSize: '16px', cursor: 'pointer'}}
-        >
-          🗺️ Create TOC
-        </button>
-        <button
-          onClick={() => {
-            const id = prompt('Enter Game ID:');
-            if (id && socket) socket.emit('tactical:joinAsGround', {gameId: id});
-          }}
-          style={{padding: '15px 40px', margin: '10px', background: '#f44336', color: 'white', border: 'none', borderRadius: '5px', fontSize: '16px', cursor: 'pointer'}}
-        >
-          🪖 Join as Ground
-        </button>
+        <p>Real-Time Tactical Command - MAKE REAL DECISIONS</p>
+        <div style={{marginTop: '40px'}}>
+          <button
+            onClick={() => socket?.emit('tactical:createGame', {scenario: 'rescue'})}
+            style={{display: 'block', padding: '20px 40px', margin: '15px auto', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '18px', cursor: 'pointer', fontWeight: 'bold'}}
+          >
+            🆘 RESCUE VIP
+          </button>
+          <button
+            onClick={() => socket?.emit('tactical:createGame', {scenario: 'defend'})}
+            style={{display: 'block', padding: '20px 40px', margin: '15px auto', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', fontSize: '18px', cursor: 'pointer', fontWeight: 'bold'}}
+          >
+            🛡️ DEFEND POSITION
+          </button>
+          <button
+            onClick={() => socket?.emit('tactical:createGame', {scenario: 'patrol'})}
+            style={{display: 'block', padding: '20px 40px', margin: '15px auto', background: '#51cf66', color: 'white', border: 'none', borderRadius: '8px', fontSize: '18px', cursor: 'pointer', fontWeight: 'bold'}}
+          >
+            🗺️ PATROL MISSION
+          </button>
+        </div>
       </div>
     );
   }
 
-  // TOC combat view
+  // TOC combat view with REAL DECISIONS
   if (screen === 'toc') {
+    const formatTime = (seconds) => `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
+    const missionColor = gameData.missionStatus === 'ACTIVE' ? '#4da6ff' :
+                         gameData.missionStatus === 'EXTRACT_NOW' ? '#ffaa00' : '#ff4444';
+
     return (
       <div style={{padding: '20px', background: '#1a1a2e', color: 'white', minHeight: '100vh'}}>
-        <h2>🎖️ Tactical Operations Center</h2>
-        <p>Game: {gameId?.substring(0, 8) || '...'}</p>
+        <h2>🎖️ {scenario}</h2>
+        <p style={{color: '#999'}}>Objective: {objective}</p>
+
+        {/* DECISION PANEL - Only shows when TOC must decide */}
+        {problem && (
+          <div style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: problem.type === 'extraction' ? '#2a4a2a' : '#4a2a2a',
+            border: problem.type === 'extraction' ? '3px solid #00ff00' : '3px solid #ff4444',
+            borderRadius: '10px',
+            padding: '30px',
+            maxWidth: '600px',
+            zIndex: 1000,
+            boxShadow: '0 0 50px rgba(255, 68, 68, 0.5)'
+          }}>
+            <h3 style={{fontSize: '24px', marginTop: 0}}>{problem.text}</h3>
+
+            {decisionResult ? (
+              <div style={{background: '#1a1a2e', padding: '15px', borderRadius: '5px', marginTop: '15px'}}>
+                <h4>✅ Decision Made</h4>
+                <p><strong>{decisionResult.decision}</strong></p>
+                <p style={{color: '#ffaa00'}}>{decisionResult.consequence}</p>
+                <p>Morale: <span style={{color: decisionResult.morale > 100 ? '#00ff00' : '#ff4444'}}>{decisionResult.morale}</span></p>
+              </div>
+            ) : problem.type !== 'extraction' ? (
+              <div style={{marginTop: '20px'}}>
+                {problem.options && problem.options.map((opt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => socket?.emit('tactical:makeDecision', {
+                      gameId,
+                      decision: opt,
+                      problemType: problem.problem
+                    })}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '15px',
+                      margin: '10px 0',
+                      background: opt.risk === 'high' ? '#ff6b6b' : opt.risk === 'medium' ? '#ffaa00' : '#51cf66',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {opt.label} ({opt.risk} risk)
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', marginBottom: '20px'}}>
+          <div style={{background: '#2a2a4e', padding: '10px', borderRadius: '5px', textAlign: 'center'}}>
+            <div style={{fontSize: '12px', color: '#999'}}>TIME</div>
+            <div style={{fontSize: '20px', fontWeight: 'bold'}}>{formatTime(gameData.time)}</div>
+          </div>
+          <div style={{background: '#2a2a4e', padding: '10px', borderRadius: '5px', textAlign: 'center'}}>
+            <div style={{fontSize: '12px', color: '#999'}}>MORALE</div>
+            <div style={{fontSize: '20px', fontWeight: 'bold', color: gameData.morale > 80 ? '#00ff00' : gameData.morale > 50 ? '#ffaa00' : '#ff4444'}}>{gameData.morale}%</div>
+          </div>
+          <div style={{background: '#2a2a4e', padding: '10px', borderRadius: '5px', textAlign: 'center'}}>
+            <div style={{fontSize: '12px', color: '#999'}}>CASUALTIES</div>
+            <div style={{fontSize: '20px', fontWeight: 'bold', color: '#ff4444'}}>{gameData.casualties}</div>
+          </div>
+          <div style={{background: '#2a2a4e', padding: '10px', borderRadius: '5px', textAlign: 'center'}}>
+            <div style={{fontSize: '12px', color: '#999'}}>ENEMIES KIA</div>
+            <div style={{fontSize: '20px', fontWeight: 'bold', color: '#00ff00'}}>{gameData.enemiesKilled}</div>
+          </div>
+        </div>
 
         <div style={{display: 'flex', gap: '20px'}}>
           {/* Canvas */}
@@ -169,29 +281,38 @@ export default function TacticalGame({ user, onGameEnd }) {
               height="400"
               style={{border: gameData.combatActive ? '3px solid #ff4444' : '2px solid #667eea', background: '#0a0a1a', cursor: 'crosshair', borderRadius: '5px'}}
             />
-            <p>{gameData.combatActive ? '⚔️ Combat Ongoing' : '📍 Patrol Mode'}</p>
+            <p style={{textAlign: 'center', color: missionColor, fontWeight: 'bold'}}>
+              {gameData.missionStatus === 'ACTIVE' ? '📍 MISSION ACTIVE' :
+               gameData.missionStatus === 'EXTRACT_NOW' ? '🚁 EXTRACT AT LZ' : '💀 MISSION FAILED'}
+            </p>
           </div>
 
           {/* Status Panel */}
-          <div style={{background: '#2a2a4e', padding: '15px', borderRadius: '5px', minWidth: '200px'}}>
+          <div style={{background: '#2a2a4e', padding: '15px', borderRadius: '5px', minWidth: '250px'}}>
             <h3>🎖️ Unit Status</h3>
-            {gameData.tocUnits && gameData.tocUnits.map((unit, i) => (
-              <div key={i} style={{padding: '8px', background: '#1a1a2e', marginBottom: '8px', borderRadius: '4px', borderLeft: `4px solid ${unit.health > 75 ? '#4da6ff' : unit.health > 50 ? '#ffaa00' : '#ff4444'}`}}>
-                <strong>Unit {i+1}</strong> {unit.name}
-                <br />HP: {unit.health?.toFixed(0) || 100}/100
-                <br />{unit.status || '✅ Ready'}
-              </div>
-            ))}
+            {gameData.tocUnits && gameData.tocUnits.map((unit, i) => {
+              const status = unit.health > 75 ? '✅ Ready' : unit.health > 50 ? '⚠️ Engaged' : unit.health > 25 ? '🔴 Pinned' : '💀 Critical';
+              return (
+                <div key={i} style={{padding: '10px', background: '#1a1a2e', marginBottom: '8px', borderRadius: '4px', borderLeft: `4px solid ${unit.health > 75 ? '#4da6ff' : unit.health > 50 ? '#ffaa00' : '#ff4444'}`}}>
+                  <strong>{unit.name}</strong> {unit.role && `(${unit.role})`}
+                  <br />HP: {unit.health?.toFixed(0) || 100}/100
+                  <br />{status}
+                </div>
+              );
+            })}
 
-            <h3 style={{marginTop: '20px'}}>🔴 Enemies</h3>
-            <p>{gameData.enemies?.length || 0} active</p>
+            <h3 style={{marginTop: '20px'}}>🔴 Enemy Count</h3>
+            <p>{gameData.enemies?.filter(e => e.health > 0).length || 0} active</p>
 
-            <h3 style={{marginTop: '20px'}}>⚙️ Commands</h3>
-            <button onClick={() => socket?.emit('tactical:sendOrder', {gameId, order: 'advance', target: 'objective'})} style={{display: 'block', width: '100%', padding: '8px', marginBottom: '5px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>
+            <h3 style={{marginTop: '20px'}}>⚙️ Orders</h3>
+            <button onClick={() => socket?.emit('tactical:sendOrder', {gameId, order: 'advance', target: 'objective'})} style={{display: 'block', width: '100%', padding: '8px', marginBottom: '5px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px'}}>
               ↑ Advance
             </button>
-            <button onClick={() => socket?.emit('tactical:sendOrder', {gameId, order: 'engage', target: 'enemies'})} style={{display: 'block', width: '100%', padding: '8px', marginBottom: '5px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>
-              🎯 Engage
+            <button onClick={() => socket?.emit('tactical:sendOrder', {gameId, order: 'hold', target: 'position'})} style={{display: 'block', width: '100%', padding: '8px', marginBottom: '5px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px'}}>
+              🛡️ Hold Position
+            </button>
+            <button onClick={() => socket?.emit('tactical:sendOrder', {gameId, order: 'engage', target: 'enemies'})} style={{display: 'block', width: '100%', padding: '8px', marginBottom: '5px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px'}}>
+              🎯 Engage Enemies
             </button>
           </div>
         </div>

@@ -602,25 +602,111 @@ io.on('connection', (socket) => {
     }
   });
 
+  // REAL TACTICAL SCENARIOS with decision-making
+  const SCENARIOS = {
+    rescue: {
+      name: '🆘 RESCUE VIP',
+      objective: 'Extract trapped diplomat',
+      units: [
+        { id: 'u1', name: 'Alpha', x: 50, y: 50, health: 100, role: 'Assault' },
+        { id: 'u2', name: 'Bravo', x: 80, y: 50, health: 100, role: 'Support' },
+      ],
+      enemies: [
+        { id: 'e1', x: 250, y: 150, health: 50, patrol: true },
+        { id: 'e2', x: 280, y: 200, health: 50, patrol: true },
+      ],
+      problems: [
+        { time: 15, type: 'intel', text: '⚠️ INTEL: Enemy patrol spotted near VIP location!' },
+        { time: 30, type: 'casualty', text: '🚑 CASUALTY: Unit Bravo taking fire - DECISION NEEDED' },
+        { time: 45, type: 'reinforcements', text: '🚁 INCOMING: Enemy reinforcements 2 minutes out!' },
+      ],
+      decisions: {
+        casualty: [
+          { label: '🏥 Evacuate Bravo NOW', risk: 'low', consequence: 'Bravo escapes, mission delayed', morale: 5 },
+          { label: '⏭️ Continue mission, suppress fire', risk: 'high', consequence: 'Bravo health -25%, mission continues', morale: -10 },
+        ],
+        reinforcements: [
+          { label: '⚡ Full speed extract', risk: 'medium', consequence: 'Get out fast, VIP retrieved', morale: 10 },
+          { label: '🎯 Ambush incoming convoy', risk: 'high', consequence: 'Delay reinforcements, risky', morale: 15 },
+        ]
+      }
+    },
+    defend: {
+      name: '🛡️ DEFEND POSITION',
+      objective: 'Hold base against enemy assault',
+      units: [
+        { id: 'u1', name: 'Alpha', x: 100, y: 100, health: 100, role: 'Rifleman' },
+        { id: 'u2', name: 'Bravo', x: 120, y: 100, health: 100, role: 'Gunner' },
+      ],
+      enemies: [
+        { id: 'e1', x: 300, y: 150, health: 50, assault: true },
+        { id: 'e2', x: 320, y: 150, health: 50, assault: true },
+        { id: 'e3', x: 340, y: 150, health: 50, assault: true },
+      ],
+      problems: [
+        { time: 20, type: 'assault', text: '⚔️ ASSAULT: 3 enemy units advancing on position!' },
+        { time: 40, type: 'ammo', text: '💣 LOW AMMO: Bravo down to last magazine - DECISION' },
+        { time: 60, type: 'support', text: '✈️ SUPPORT AVAILABLE: CAS can strike but risk to units' },
+      ],
+      decisions: {
+        ammo: [
+          { label: '📦 Resupply Bravo', risk: 'high', consequence: 'Full ammo, exposed supply run', morale: 5 },
+          { label: '🔄 Rotate to rear', risk: 'low', consequence: 'Bravo falls back, line weakens', morale: -5 },
+        ],
+        support: [
+          { label: '💥 Call airstrike', risk: 'medium', consequence: 'Heavy enemy losses', morale: 20 },
+          { label: '🤐 Hold fire', risk: 'high', consequence: 'Preserve ammo, brutal close combat', morale: 0 },
+        ]
+      }
+    },
+    patrol: {
+      name: '🗺️ PATROL MISSION',
+      objective: 'Reconnaissance and threat elimination',
+      units: [
+        { id: 'u1', name: 'Alpha', x: 50, y: 50, health: 100, role: 'Scout' },
+        { id: 'u2', name: 'Bravo', x: 80, y: 50, health: 100, role: 'Recon' },
+      ],
+      enemies: [
+        { id: 'e1', x: 200, y: 150, health: 50, hidden: true },
+        { id: 'e2', x: 250, y: 200, health: 50, hidden: true },
+      ],
+      problems: [
+        { time: 25, type: 'ambush', text: '💥 AMBUSH: Units in kill zone!' },
+        { time: 50, type: 'intel', text: '🔍 INTEL: Large force detected 5km out' },
+      ],
+      decisions: {
+        ambush: [
+          { label: '💨 MOVE NOW (suppress & go)', risk: 'medium', consequence: 'Escape zone, take damage', morale: 5 },
+          { label: '🎯 Return fire (fight)', risk: 'high', consequence: 'Brutal fight, high casualties', morale: 15 },
+        ]
+      }
+    }
+  };
+
   // Tactical Game - TOC creates scenario
   socket.on('tactical:createGame', (data) => {
     const gameId = `game_${Date.now()}`;
+    const selectedScenario = SCENARIOS[data.scenario] || SCENARIOS.patrol;
+
     const game = {
       id: gameId,
       toc: { socketId: socket.id, userId: socket.userId, username: socket.username },
       groundUnits: [],
-      scenario: data.scenario || 'patrol',
+      scenario: selectedScenario,
       state: {
-        tocUnits: [
-          { id: 'u1', name: 'Alpha', x: 50, y: 50, health: 100 },
-          { id: 'u2', name: 'Bravo', x: 80, y: 50, health: 100 },
-        ],
-        enemies: [
-          { id: 'e1', x: 200, y: 150, health: 50, revealed: false },
-          { id: 'e2', x: 250, y: 200, health: 50, revealed: false },
-        ],
-        tocIntel: [], // Partial intel TOC sees
-        time: 300 // 5 minutes
+        tocUnits: selectedScenario.units.map(u => ({...u})),
+        enemies: selectedScenario.enemies.map(e => ({...e, revealed: false})),
+        tocIntel: [],
+        time: 120, // 2 minutes
+        missionStatus: 'ACTIVE',
+        objectives: selectedScenario.objective,
+        combatActive: false,
+        problemQueue: [...selectedScenario.problems],
+        currentProblem: null,
+        awaitingDecision: false,
+        casualtiesCount: 0,
+        enemiesKilled: 0,
+        morale: 100
       },
       createdAt: Date.now()
     };
@@ -628,10 +714,12 @@ io.on('connection', (socket) => {
     activeGames.set(gameId, game);
     socket.join(gameId);
 
-    // Send initial game state to TOC
+    // Send detailed mission briefing to TOC
     socket.emit('tactical:gameCreated', {
       gameId,
       role: 'TOC',
+      scenario: selectedScenario.name,
+      objective: selectedScenario.objective,
       initialState: game.state
     });
 
@@ -640,10 +728,81 @@ io.on('connection', (socket) => {
       groundUnits: game.groundUnits,
       enemies: game.state.enemies,
       tocUnits: game.state.tocUnits,
-      time: game.state.time
+      time: game.state.time,
+      objective: game.state.objectives,
+      combatActive: game.state.combatActive,
+      missionStatus: game.state.missionStatus,
+      morale: game.state.morale
     });
 
-    console.log(`🎖️ TOC created tactical game: ${gameId}`);
+    console.log(`🎖️ TOC created: ${selectedScenario.name} (${gameId})`);
+
+    // Start problem simulation
+    game.problemSimulation = setInterval(() => {
+      if (game.state.time <= 0) {
+        clearInterval(game.problemSimulation);
+        game.state.missionStatus = 'EXTRACT_NOW';
+        io.to(gameId).emit('tactical:missionEvent', {
+          type: 'extraction',
+          text: '🚁 EXTRACT NOW - Exfil available at LZ'
+        });
+        return;
+      }
+
+      game.state.time--;
+
+      // Pop problems from queue
+      if (game.state.problemQueue.length > 0 && game.state.problemQueue[0].time >= game.state.time && !game.state.awaitingDecision) {
+        const problem = game.state.problemQueue.shift();
+        game.state.currentProblem = problem;
+        game.state.awaitingDecision = true;
+
+        io.to(gameId).emit('tactical:missionEvent', {
+          type: 'decision',
+          problem: problem.type,
+          text: problem.text,
+          options: selectedScenario.decisions[problem.type] || []
+        });
+
+        console.log(`⚡ PROBLEM: ${problem.text}`);
+      }
+
+      // Enemy combat AI
+      game.state.enemies.forEach(enemy => {
+        if (enemy.health <= 0) return;
+        const closestUnit = game.state.tocUnits.reduce((closest, unit) => {
+          if (unit.health <= 0) return closest;
+          const dist = Math.hypot(enemy.x - unit.x, enemy.y - unit.y);
+          return !closest || dist < Math.hypot(enemy.x - closest.x, enemy.y - closest.y) ? unit : closest;
+        }, null);
+
+        if (!closestUnit) return;
+
+        const dist = Math.hypot(enemy.x - closestUnit.x, enemy.y - closestUnit.y);
+        if (dist > 150) {
+          enemy.x += Math.random() * 4 - 2;
+          enemy.y += Math.random() * 4 - 2;
+          enemy.revealed = false;
+        } else if (dist < 100) {
+          game.state.combatActive = true;
+          closestUnit.health = Math.max(0, closestUnit.health - 3);
+          enemy.health = Math.max(0, enemy.health - 5);
+          if (closestUnit.health === 0) game.state.casualtiesCount++;
+          if (enemy.health === 0) game.state.enemiesKilled++;
+        }
+      });
+
+      io.to(gameId).emit('tactical:stateUpdate', {
+        tocUnits: game.state.tocUnits,
+        enemies: game.state.enemies,
+        time: game.state.time,
+        combatActive: game.state.combatActive,
+        missionStatus: game.state.missionStatus,
+        morale: game.state.morale,
+        casualties: game.state.casualtiesCount,
+        enemiesKilled: game.state.enemiesKilled
+      });
+    }, 1000);
   });
 
   // Tactical Game - Ground unit joins
@@ -664,6 +823,45 @@ io.on('connection', (socket) => {
     socket.emit('tactical:gameJoined', { gameId: data.gameId, role: 'GROUND' });
     io.to(data.gameId).emit('tactical:playerJoined', { username: socket.username, role: 'GROUND' });
     console.log(`🪖 Ground unit joined: ${socket.username}`);
+  });
+
+  // TOC sends tactical decision
+  socket.on('tactical:makeDecision', (data) => {
+    const game = activeGames.get(data.gameId);
+    if (!game || game.toc.socketId !== socket.id) return;
+
+    const decision = data.decision;
+    console.log(`🎖️ TOC DECISION: ${decision.label} (Risk: ${decision.risk})`);
+
+    // Apply consequences
+    game.state.morale += decision.morale;
+    game.state.awaitingDecision = false;
+
+    // Apply decision-specific effects
+    if (data.problemType === 'casualty' && decision.label.includes('Evacuate')) {
+      game.state.tocUnits[1].health = 100; // Bravo escapes
+      game.state.casualtiesCount--;
+    } else if (data.problemType === 'casualty' && decision.label.includes('suppress')) {
+      game.state.tocUnits[1].health -= 25;
+    } else if (data.problemType === 'ammo' && decision.label.includes('Resupply')) {
+      game.state.tocUnits[1].health -= 15; // Supply run risk
+    } else if (data.problemType === 'support' && decision.label.includes('airstrike')) {
+      game.state.enemies.forEach(e => e.health -= 30);
+    }
+
+    io.to(data.gameId).emit('tactical:decisionResult', {
+      decision: decision.label,
+      consequence: decision.consequence,
+      morale: game.state.morale
+    });
+
+    io.to(data.gameId).emit('tactical:stateUpdate', {
+      tocUnits: game.state.tocUnits,
+      enemies: game.state.enemies,
+      morale: game.state.morale,
+      casualties: game.state.casualtiesCount,
+      missionStatus: game.state.missionStatus
+    });
   });
 
   // TOC sends order to units
