@@ -292,15 +292,17 @@ export default function TacticalGame({ user, onGameEnd }) {
           {/* Intel & Orders */}
           <div style={styles.intelSection}>
             <div>
-              <h3>📊 Unit Reports</h3>
+              <h3>📊 Battlefield Status</h3>
               <div style={styles.intelList}>
-                {gameData?.intel?.slice(-3).map((report, i) => (
-                  <div key={i} style={styles.intelItem}>
-                    <strong>{report.unit}</strong>
-                    <br/>Position: ({Math.round(report.x)}, {Math.round(report.y)})
-                    <br/><small>{report.status}</small>
-                  </div>
-                ))}
+                <div style={styles.intelItem}>
+                  <strong>Units:</strong> {gameData?.tocUnits?.length || 0}
+                </div>
+                <div style={styles.intelItem}>
+                  <strong>Enemies:</strong> {gameData?.enemies?.length || 0}
+                </div>
+                <div style={styles.intelItem}>
+                  <strong>Time:</strong> {gameData?.time || 0}s
+                </div>
               </div>
             </div>
 
